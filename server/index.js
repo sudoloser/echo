@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const CryptoJS = require('crypto-js');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
@@ -12,6 +12,12 @@ const SOLVER_KEY = process.env.SOLVER_KEY;
 if (!SOLVER_KEY) {
   console.warn('WARNING: SOLVER_KEY is not set. The server is currently unprotected.');
 }
+
+app.get('/', (req, res) => {
+  res.send('Echo LRCLIB Solver Server is running.');
+});
+
+app.get('/health', (req, res) => res.send('OK'));
 
 /**
  * Solve LRCLIB PoW challenge
@@ -35,9 +41,9 @@ app.post('/solve', (req, res) => {
   const lowerTarget = target.toLowerCase();
   
   let nonce = 0;
-  // Node.js is much faster at this than mobile JS bridge
+  // Node.js native crypto is much faster than CryptoJS
   while (true) {
-    const hash = CryptoJS.SHA256(prefix + nonce).toString();
+    const hash = crypto.createHash('sha256').update(prefix + nonce).digest('hex');
     if (hash < lowerTarget) {
       const elapsed = (Date.now() - startTime) / 1000;
       console.log(`Solved at nonce ${nonce} in ${elapsed}s`);
@@ -51,8 +57,6 @@ app.post('/solve', (req, res) => {
     }
   }
 });
-
-app.get('/health', (req, res) => res.send('OK'));
 
 app.listen(PORT, () => {
   console.log(`Echo Solver Server running on port ${PORT}`);
