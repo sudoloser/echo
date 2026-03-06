@@ -42,6 +42,7 @@ jobs:
         env:
           EXPO_PUBLIC_SOLVER_URL: ${{ secrets.SOLVER_URL }}
           EXPO_PUBLIC_SOLVER_KEY: ${{ secrets.SOLVER_KEY }}
+          EXPO_PUBLIC_BASE_URL: /echo
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

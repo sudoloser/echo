@@ -1,4 +1,4 @@
-# Echo
+# <img src="public/echo.png" width="48" height="48" align="center" /> Echo
 
 Echo is a minimalist, open-source lyric editor built with Expo and TypeScript. It is designed specifically for creating, syncing, and publishing time-tagged lyrics to [LRCLIB](https://lrclib.net/).
 
@@ -42,9 +42,9 @@ These will be automatically injected as `EXPO_PUBLIC_SOLVER_URL` and `EXPO_PUBLI
 The project includes a GitHub Workflow that automatically builds a debug APK on every push to `main`. You can find the APKs in the **Actions** tab under the latest run.
 
 ### Web (GitHub Pages)
-This app is fully compatible with GitHub Pages. On every push to `main`, it automatically exports the web version to the `gh-pages` branch.
+This app is fully compatible with GitHub Pages. On every push to `main`, it automatically builds and deploys the web version.
 1. Go to your repository **Settings** > **Pages**.
-2. Set **Source** to "GitHub Actions".
+2. Under **Build and deployment** > **Source**, select **"GitHub Actions"**.
 3. The app will be live at `https://<your-username>.github.io/echo/`.
 
 ## Getting Started

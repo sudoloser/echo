@@ -2,10 +2,9 @@
   "expo": {
     "name": "echo",
     "slug": "echo",
-    "baseUrl": "/echo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/echo.png",
     "scheme": "echo",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -29,13 +28,16 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "baseUrl": "/echo",
+      "favicon": "./assets/images/echo.png"
     },
+
     "plugins": [
       "expo-router"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/echo"
     }
   }
 }
