@@ -14,10 +14,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
         {/* Open Graph / Discord / Facebook */}
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://sudoloser.github.io/echo/" />
+        <meta property="og:url" content="https://explysm.github.io/echo/" />
         <meta property="og:title" content="Echo - Minimalist Lyric Editor" />
         <meta property="og:description" content="A minimalist, open-source lyric editor for creating, syncing, and publishing time-tagged lyrics to LRCLIB." />
-        <meta property="og:image" content="https://sudoloser.github.io/echo/echo.png" />
+        <meta property="og:image" content="https://explysm.github.io/echo/echo.png" />
 
         {/* iOS PWA support */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -28,10 +28,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:url" content="https://sudoloser.github.io/echo/" />
+        <meta name="twitter:url" content="https://explysm.github.io/echo/" />
         <meta name="twitter:title" content="Echo - Minimalist Lyric Editor" />
         <meta name="twitter:description" content="A minimalist, open-source lyric editor for creating, syncing, and publishing time-tagged lyrics to LRCLIB." />
-        <meta name="twitter:image" content="https://sudoloser.github.io/echo/echo.png" />
+        <meta name="twitter:image" content="https://explysm.github.io/echo/echo.png" />
 
         {/* 
           Disable body scrolling on web. This makes ScrollView components work closer to how they do on native. 

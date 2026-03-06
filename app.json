@@ -16,7 +16,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "dev.sudoloser.echo",
+      "package": "dev.explysm.echo",
       "permissions": [
         "NOTIFICATIONS"
       ],

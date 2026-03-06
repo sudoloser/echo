@@ -10,11 +10,17 @@ Echo is a minimalist, open-source lyric editor built with Expo and TypeScript, d
 - **Export to .lrc**: Save your work locally as standard LRC files.
 - **Cross-Platform**: Works as an Android APK and a static Web site (PWA supported).
 
+## Screenshots
+<p align="center">
+  <img src="assets/images/echo-ss-1.png" width="300" />
+  <img src="assets/images/echo-ss-2.png" width="300" />
+</p>
+
 ## Setup
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/sudoloser/echo.git
+   git clone https://github.com/explysm/echo.git
    cd echo
    ```
 

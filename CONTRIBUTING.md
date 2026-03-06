@@ -6,7 +6,7 @@ Thank you for your interest in contributing to **Echo**! We appreciate your help
 
 ### Reporting Bugs
 
--   Check if the bug has already been reported in the [Issues](https://github.com/sudoloser/echo/issues) tab.
+-   Check if the bug has already been reported in the [Issues](https://github.com/explysm/echo/issues) tab.
 -   If it hasn't, open a new issue.
 -   Include as much detail as possible: steps to reproduce, device information, and screenshots if applicable.
 

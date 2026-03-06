@@ -48,7 +48,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     secondaryText: '#666666',
     tint: '#0f172a',
   });
-  const [userAgent, setUserAgentState] = useState('Echo Lyric Editor (https://github.com/sudoloser/echo)');
+  const [userAgent, setUserAgentState] = useState('Echo Lyric Editor (https://github.com/explysm/echo)');
   const [pauseOnEnd, setPauseOnEndState] = useState(true);
   const [rewindAmount, setRewindAmountState] = useState(1.5);
   const [enableFancyAnimations, setEnableFancyAnimationsState] = useState(false);

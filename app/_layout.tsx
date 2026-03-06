@@ -49,7 +49,7 @@ function RootLayoutContent({ fontsLoaded }: { fontsLoaded: boolean }) {
     const checkRemoteUpdate = async () => {
       if (Platform.OS === 'web' || !isInitialized) return;
       try {
-        const BUNDLE_URL = 'https://sudoloser.github.io/echo/echo.js';
+        const BUNDLE_URL = 'https://explysm.github.io/echo/echo.js';
         const response = await fetch(BUNDLE_URL, { method: 'HEAD' });
         const lastModified = response.headers.get('last-modified');
         

@@ -43,6 +43,9 @@ jobs:
           EXPO_PUBLIC_BUILD_TIME: $(date +%s)
           EXPO_PUBLIC_BASE_URL: /echo
 
+      - name: Create echo.js for bundle update check
+        run: cp dist/_expo/static/js/web/index-*.js dist/echo.js
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
