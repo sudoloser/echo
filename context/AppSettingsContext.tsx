@@ -67,7 +67,15 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [savedTheme, savedAccent, savedUA, savedPause, savedRewind, savedSolver, savedKey] = await Promise.all([
+        const [
+          savedTheme, 
+          savedAccent, 
+          savedUA, 
+          savedPause, 
+          savedRewind, 
+          savedSolver, 
+          savedKey
+        ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
           AsyncStorage.getItem(STORAGE_KEYS.USER_AGENT),
@@ -77,6 +85,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           AsyncStorage.getItem(STORAGE_KEYS.SOLVER_KEY),
         ]);
 
+        // Batch these updates
         if (savedTheme) setThemeState(savedTheme as Theme);
         if (savedAccent) setAccentKeyState(savedAccent as AccentKey);
         if (savedUA) setUserAgentState(savedUA);
@@ -90,6 +99,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
       } catch (e) {
         console.error('Failed to load settings:', e);
       } finally {
+        // Ensure this happens after all setters have been called
         setIsInitialized(true);
       }
     };

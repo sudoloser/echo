@@ -21,7 +21,7 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  const [fontsLoaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
@@ -30,21 +30,27 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
+  return (
+    <AppSettingsProvider>
+      <RootLayoutContent fontsLoaded={fontsLoaded} />
+    </AppSettingsProvider>
+  );
+}
+
+function RootLayoutContent({ fontsLoaded }: { fontsLoaded: boolean }) {
+  const { isInitialized } = useAppSettings();
+
   useEffect(() => {
-    if (loaded) {
+    if (fontsLoaded && isInitialized) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, isInitialized]);
 
-  if (!loaded) {
+  if (!fontsLoaded || !isInitialized) {
     return null;
   }
 
-  return (
-    <AppSettingsProvider>
-      <RootLayoutNav />
-    </AppSettingsProvider>
-  );
+  return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {

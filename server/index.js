@@ -40,21 +40,41 @@ app.post('/solve', (req, res) => {
   const startTime = Date.now();
   const lowerTarget = target.toLowerCase();
   
+  // Set headers for streaming progress
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+
   let nonce = 0;
-  // Node.js native crypto is much faster than CryptoJS
-  while (true) {
-    const hash = crypto.createHash('sha256').update(prefix + nonce).digest('hex');
-    if (hash < lowerTarget) {
-      const elapsed = (Date.now() - startTime) / 1000;
-      console.log(`Solved at nonce ${nonce} in ${elapsed}s`);
-      return res.json({ nonce: nonce.toString(), elapsed });
+  const progressInterval = 50000;
+
+  try {
+    while (true) {
+      const hash = crypto.createHash('sha256').update(prefix + nonce).digest('hex');
+      if (hash < lowerTarget) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        console.log(`Solved at nonce ${nonce} in ${elapsed}s`);
+        // Final result marked with a special prefix
+        res.write(`RESULT: ${JSON.stringify({ nonce: nonce.toString(), elapsed })}\n`);
+        return res.end();
+      }
+      
+      nonce++;
+
+      if (nonce % progressInterval === 0) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        res.write(`PROGRESS: Nonce ${nonce} (${elapsed.toFixed(1)}s elapsed...)\n`);
+      }
+      
+      // Safety break for extremely high difficulty
+      if (nonce > 50000000) {
+        res.write(`ERROR: Difficulty too high for this server\n`);
+        return res.end();
+      }
     }
-    nonce++;
-    
-    // Safety break for extremely high difficulty (prevents infinite loop on server)
-    if (nonce > 50000000) {
-      return res.status(500).json({ error: 'Difficulty too high for this server' });
-    }
+  } catch (err) {
+    console.error('Solver error:', err);
+    res.write(`ERROR: Internal server error during solving\n`);
+    return res.end();
   }
 });
 

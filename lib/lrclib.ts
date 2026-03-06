@@ -89,6 +89,71 @@ async function solveChallenge(
   }
 }
 
+async function fetchRemoteSolver(
+  url: string,
+  key: string,
+  prefix: string,
+  target: string,
+  onProgress?: (msg: string) => void
+): Promise<{ nonce: string; elapsed: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${url}/solve`, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('x-solver-key', key || '');
+
+    let lastIndex = 0;
+
+    xhr.onprogress = () => {
+      const newText = xhr.responseText.substring(lastIndex);
+      lastIndex = xhr.responseText.length;
+      
+      console.log('Solver Chunk:', newText);
+      const lines = newText.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('PROGRESS:')) {
+          onProgress?.(line.replace('PROGRESS:', '').trim());
+        } else if (line.startsWith('ERROR:')) {
+          reject(new Error(line.replace('ERROR:', '').trim()));
+        }
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        // Look for the RESULT line in the full response
+        const lines = xhr.responseText.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('RESULT:')) {
+            try {
+              const data = JSON.parse(line.replace('RESULT:', '').trim());
+              resolve(data);
+              return;
+            } catch (e) {
+              reject(new Error('Invalid JSON result from solver'));
+              return;
+            }
+          }
+        }
+        reject(new Error('Solver finished without a result line'));
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          reject(new Error(errorData.error || `Solver failed with status ${xhr.status}`));
+        } catch (e) {
+          reject(new Error(`Solver failed with status ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error connecting to solver server'));
+    };
+
+    xhr.send(JSON.stringify({ prefix, target }));
+  });
+}
+
 export async function publishLyrics(
   trackName: string,
   artistName: string,
@@ -118,24 +183,13 @@ export async function publishLyrics(
     let nonce: string;
     if (solverUrl) {
       onProgress?.('Sending challenge to remote solver...');
-      const solverRes = await fetch(`${solverUrl}/solve`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-solver-key': solverKey || ''
-        },
-        body: JSON.stringify({
-          prefix: challenge.prefix,
-          target: challenge.target
-        })
-      });
-
-      if (!solverRes.ok) {
-        const errorData = await solverRes.json();
-        throw new Error(errorData.error || `Solver failed: ${solverRes.statusText}`);
-      }
-
-      const solverData = await solverRes.json();
+      const solverData = await fetchRemoteSolver(
+        solverUrl,
+        solverKey || '',
+        challenge.prefix,
+        challenge.target,
+        onProgress
+      );
       nonce = solverData.nonce;
       onProgress?.(`Remote solver finished in ${solverData.elapsed}s.`);
     } else {
