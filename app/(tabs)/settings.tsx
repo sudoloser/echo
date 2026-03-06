@@ -1,10 +1,11 @@
-import React from 'react';
-import { StyleSheet, TouchableOpacity, TextInput, Switch } from 'react-native';
-import { Moon, Sun, Monitor, Clock } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { StyleSheet, TouchableOpacity, TextInput, Switch, Modal, Pressable } from 'react-native';
+import { Moon, Sun, Monitor, Palette, Check, X, ChevronRight } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
+import ColorPicker, { HueWheel, Panel1, Preview } from 'reanimated-color-picker';
 
 import { Text, View, ScrollView, useTheme } from '@/components/Themed';
-import { useAppSettings, ACCENT_COLORS, AccentKey } from '@/context/AppSettingsContext';
+import { useAppSettings, ACCENT_COLORS, AccentKey, CustomTheme } from '@/context/AppSettingsContext';
 
 export default function SettingsScreen() {
   const { 
@@ -12,6 +13,8 @@ export default function SettingsScreen() {
     setTheme, 
     accentKey,
     setAccentKey,
+    customTheme,
+    setCustomTheme,
     userAgent, 
     setUserAgent, 
     pauseOnEnd, 
@@ -27,6 +30,22 @@ export default function SettingsScreen() {
     colorScheme 
   } = useAppSettings();
   const themeColors = useTheme();
+
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const [tempTheme, setTempTheme] = useState<CustomTheme>(customTheme);
+  const [editingKey, setEditingKey] = useState<keyof CustomTheme | null>(null);
+
+  const onColorChange = ({ hex }: { hex: string }) => {
+    if (editingKey) {
+      setTempTheme(prev => ({ ...prev, [editingKey]: hex }));
+    }
+  };
+
+  const handleApplyCustomTheme = () => {
+    setCustomTheme(tempTheme);
+    setAccentKey('custom');
+    setShowThemeModal(false);
+  };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -60,7 +79,7 @@ export default function SettingsScreen() {
 
         <Text style={[styles.label, { marginTop: 20, color: themeColors.secondaryText }]}>Accent Color</Text>
         <View style={styles.accentRow}>
-          {(Object.keys(ACCENT_COLORS) as AccentKey[]).map((key) => (
+          {(Object.keys(ACCENT_COLORS) as (keyof typeof ACCENT_COLORS)[]).map((key) => (
             <TouchableOpacity
               key={key}
               style={[
@@ -71,6 +90,16 @@ export default function SettingsScreen() {
               onPress={() => setAccentKey(key)}
             />
           ))}
+          <TouchableOpacity
+            style={[
+              styles.accentButton,
+              { backgroundColor: customTheme.tint, justifyContent: 'center', alignItems: 'center' },
+              accentKey === 'custom' && { borderColor: themeColors.text, borderWidth: 3 }
+            ]}
+            onPress={() => setShowThemeModal(true)}
+          >
+            <Palette size={20} color={customTheme.background} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -206,7 +235,95 @@ export default function SettingsScreen() {
         </Text>
         <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.0.0</Text>
       </View>
+
+      {/* Theme Maker Modal */}
+      <Modal visible={showThemeModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: 1 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Custom Theme Maker</Text>
+              <TouchableOpacity onPress={() => setShowThemeModal(false)}>
+                <X color={themeColors.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.themePreview, { backgroundColor: tempTheme.background, borderColor: tempTheme.secondaryText + '33' }]}>
+              <Text style={{ color: tempTheme.text, fontSize: 18, fontWeight: 'bold' }}>Theme Preview</Text>
+              <Text style={{ color: tempTheme.secondaryText, fontSize: 14 }}>This is how your text will look.</Text>
+              <View style={[styles.previewPill, { backgroundColor: tempTheme.tint }]}>
+                <Text style={{ color: tempTheme.background, fontWeight: 'bold' }}>ACTIVE TINT</Text>
+              </View>
+            </View>
+
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              <ColorPickerRow 
+                label="Background" 
+                value={tempTheme.background} 
+                onPress={() => setEditingKey(editingKey === 'background' ? null : 'background')}
+                active={editingKey === 'background'}
+                themeColors={themeColors}
+              />
+              <ColorPickerRow 
+                label="Text" 
+                value={tempTheme.text} 
+                onPress={() => setEditingKey(editingKey === 'text' ? null : 'text')}
+                active={editingKey === 'text'}
+                themeColors={themeColors}
+              />
+              <ColorPickerRow 
+                label="Secondary Text" 
+                value={tempTheme.secondaryText} 
+                onPress={() => setEditingKey(editingKey === 'secondaryText' ? null : 'secondaryText')}
+                active={editingKey === 'secondaryText'}
+                themeColors={themeColors}
+              />
+              <ColorPickerRow 
+                label="Tint / Accent" 
+                value={tempTheme.tint} 
+                onPress={() => setEditingKey(editingKey === 'tint' ? null : 'tint')}
+                active={editingKey === 'tint'}
+                themeColors={themeColors}
+              />
+
+              {editingKey && (
+                <View style={styles.pickerContainer}>
+                  <ColorPicker 
+                    value={tempTheme[editingKey]} 
+                    onChange={onColorChange}
+                  >
+                    <Panel1 style={styles.pickerPanel} />
+                    <HueWheel style={styles.pickerWheel} />
+                    <Preview hideInitialColor />
+                  </ColorPicker>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.applyButton, { backgroundColor: themeColors.tint }]}
+              onPress={handleApplyCustomTheme}
+            >
+              <Check size={20} color={themeColors.background} style={{ marginRight: 8 }} />
+              <Text style={[styles.applyButtonText, { color: themeColors.background }]}>Apply Custom Theme</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
+  );
+}
+
+function ColorPickerRow({ label, value, onPress, active, themeColors }: any) {
+  return (
+    <TouchableOpacity 
+      style={[styles.colorPickerRow, { borderColor: active ? themeColors.tint : themeColors.border }]} 
+      onPress={onPress}
+    >
+      <View style={[styles.colorSwatch, { backgroundColor: value }]} />
+      <Text style={[styles.colorPickerLabel, { color: themeColors.text }]}>{label}</Text>
+      <Text style={[styles.colorHex, { color: themeColors.secondaryText }]}>{value.toUpperCase()}</Text>
+      <ChevronRight size={18} color={themeColors.secondaryText} style={{ transform: [{ rotate: active ? '90deg' : '0deg' }] }} />
+    </TouchableOpacity>
   );
 }
 
@@ -329,5 +446,86 @@ const styles = StyleSheet.create({
   version: {
     fontSize: 12,
     marginTop: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    gap: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  themePreview: {
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  previewPill: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  colorPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+    gap: 12,
+  },
+  colorPickerLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  colorHex: {
+    fontSize: 12,
+    fontFamily: 'SpaceMono',
+  },
+  pickerContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  pickerPanel: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  pickerWheel: {
+    width: 200,
+    height: 200,
+  },
+  applyButton: {
+    flexDirection: 'row',
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

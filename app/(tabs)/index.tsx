@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
@@ -9,7 +9,15 @@ import {
   Modal,
   Pressable,
   Platform,
+  LayoutChangeEvent,
+  FlatList,
 } from 'react-native';
+import Animated, { 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming,
+  useSharedValue 
+} from 'react-native-reanimated';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -29,7 +37,9 @@ import {
 import Slider from '@react-native-community/slider';
 import { StatusBar } from 'expo-status-bar';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Text, View, useTheme } from '@/components/Themed';
 import { useAppSettings } from '@/context/AppSettingsContext';
@@ -40,9 +50,147 @@ import {
   publishLyrics,
 } from '@/lib/lrclib';
 
+// Memoized Sync Line to prevent re-renders on every playback tick
+const SyncLyricLine = memo(({ 
+  line, 
+  isActive, 
+  onPress, 
+  onDelete, 
+  onSeek, 
+  theme 
+}: { 
+  line: LyricLine, 
+  isActive: boolean, 
+  onPress: (line: LyricLine) => void, 
+  onDelete: (id: string) => void, 
+  onSeek: (time: number) => void,
+  theme: any 
+}) => {
+  return (
+    <Pressable 
+      style={({ pressed }) => [
+        styles.lyricLine, 
+        { borderBottomColor: theme.border },
+        pressed && { backgroundColor: theme.border },
+        isActive && { backgroundColor: theme.tint + '15' }
+      ]}
+      onPress={() => onPress(line)}
+    >
+      <View style={styles.lyricLineInfo}>
+        <TouchableOpacity onPress={() => onSeek(line.start)}>
+          <Text style={[styles.lyricTimestamp, { color: theme.tint }]}>
+            [{formatTime(line.start)}]
+          </Text>
+        </TouchableOpacity>
+        <Text style={[
+          styles.lyricText,
+          { color: theme.text },
+          isActive && { fontWeight: 'bold', color: theme.tint }
+        ]}>
+          {line.text}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={() => onDelete(line.id)} style={{ padding: 10 }}>
+        <Trash2 color="#ff4444" size={18} />
+      </TouchableOpacity>
+    </Pressable>
+  );
+}, (prev, next) => {
+  return prev.isActive === next.isActive && 
+         prev.line.id === next.line.id &&
+         prev.line.text === next.line.text && 
+         prev.line.start === next.line.start;
+});
+
+// Animated Sub-component for Player
+function AnimatedLyricLine({ 
+  text, 
+  isActive, 
+  theme 
+}: { 
+  text: string, 
+  isActive: boolean, 
+  theme: any 
+}) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0.6);
+
+  useEffect(() => {
+    scale.value = withSpring(isActive ? 1.05 : 1, { damping: 15, stiffness: 100 });
+    opacity.value = withTiming(isActive ? 1 : 0.6, { duration: 300 });
+  }, [isActive]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+    color: isActive ? theme.tint : theme.secondaryText,
+  }));
+
+  return (
+    <Animated.Text style={[styles.playerLine, animatedStyle]}>
+      {text}
+    </Animated.Text>
+  );
+}
+
+// Memoized Mode Toggle
+const ModeTogglePill = memo(({ 
+  currentMode, 
+  onModeChange, 
+  theme 
+}: { 
+  currentMode: string, 
+  onModeChange: (mode: 'raw' | 'sync' | 'play') => void, 
+  theme: any 
+}) => {
+  return (
+    <View style={[styles.pill, { backgroundColor: theme.border }]}>
+      {(['raw', 'sync', 'play'] as const).map((mode) => (
+        <TouchableOpacity
+          key={mode}
+          style={[
+            styles.pillSegment,
+            currentMode === mode && { backgroundColor: theme.tint }
+          ]}
+          onPress={() => onModeChange(mode)}
+        >
+          <Text 
+            style={[
+              styles.pillText, 
+              { color: currentMode === mode ? theme.background : theme.secondaryText }
+            ]}
+          >
+            {mode.toUpperCase()}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+});
+
+// Safe Haptics helper
+const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
+  if (Platform.OS === 'web') return;
+  try {
+    if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch (e) {
+    console.warn('Haptics not available in this build');
+  }
+};
+
 export default function EditorScreen() {
   const { colorScheme, userAgent, pauseOnEnd, rewindAmount, useRemoteSolver, solverUrl, solverKey } = useAppSettings();
   const theme = useTheme();
+
+  // Storage Keys for Auto-save
+  const EDITOR_STORAGE_KEYS = useMemo(() => ({
+    RAW_LRC: '@echo_editor_raw_lrc',
+    TRACK: '@echo_editor_track',
+    ARTIST: '@echo_editor_artist',
+    ALBUM: '@echo_editor_album',
+  }), []);
 
   // Audio state
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -54,7 +202,51 @@ export default function EditorScreen() {
   // Lyrics state
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [rawLRC, setRawLRC] = useState('');
-  const [isSyncMode, setIsSyncMode] = useState(false);
+  const [editorMode, setEditorMode] = useState<'raw' | 'sync' | 'play'>('raw');
+
+  // Auto-save logic
+  useEffect(() => {
+    const saveProgress = async () => {
+      try {
+        await Promise.all([
+          AsyncStorage.setItem(EDITOR_STORAGE_KEYS.RAW_LRC, rawLRC),
+          AsyncStorage.setItem(EDITOR_STORAGE_KEYS.TRACK, trackName),
+          AsyncStorage.setItem(EDITOR_STORAGE_KEYS.ARTIST, artistName),
+          AsyncStorage.setItem(EDITOR_STORAGE_KEYS.ALBUM, albumName),
+        ]);
+      } catch (e) {
+        console.error('Auto-save failed:', e);
+      }
+    };
+    if (rawLRC || trackName || artistName) {
+      saveProgress();
+    }
+  }, [rawLRC, trackName, artistName, albumName, EDITOR_STORAGE_KEYS]);
+
+  // Initial load
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const [lrc, track, artist, album] = await Promise.all([
+          AsyncStorage.getItem(EDITOR_STORAGE_KEYS.RAW_LRC),
+          AsyncStorage.getItem(EDITOR_STORAGE_KEYS.TRACK),
+          AsyncStorage.getItem(EDITOR_STORAGE_KEYS.ARTIST),
+          AsyncStorage.getItem(EDITOR_STORAGE_KEYS.ALBUM),
+        ]);
+        if (lrc) setRawLRC(lrc);
+        if (track) setTrackName(track);
+        if (artist) setArtistName(artist);
+        if (album) setAlbumName(album);
+      } catch (e) {
+        console.error('Initial load failed:', e);
+      }
+    };
+    loadProgress();
+  }, [EDITOR_STORAGE_KEYS]);
+  
+  // Refs
+  const playerScrollRef = useRef<ScrollView>(null);
+  const lineHeights = useRef<{ [key: number]: number }>({});
   
   // FAB / Syncing state
   const [syncState, setSyncState] = useState<'idle' | 'capturing_start' | 'capturing_end'>('idle');
@@ -73,6 +265,7 @@ export default function EditorScreen() {
   const [shareStep, setShareStep] = useState<'options' | 'lrclib'>('options');
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleExportLRC = async () => {
     if (!rawLRC) {
@@ -98,24 +291,28 @@ export default function EditorScreen() {
     try {
       // 2. Handle Android "Download" (Save to Folder)
       if (Platform.OS === 'android') {
-        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (permissions.granted) {
-          const uri = await FileSystem.StorageAccessFramework.createFileAsync(
-            permissions.directoryUri,
-            filename,
-            'text/plain'
-          );
-          await FileSystem.writeAsStringAsync(uri, rawLRC, { encoding: FileSystem.EncodingType.UTF8 });
-          Alert.alert('Success', `Saved ${filename} to folder.`);
-          setShowShareModal(false);
-          return;
+        if (FileSystem.StorageAccessFramework) {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const uri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              filename,
+              'text/plain'
+            );
+            await FileSystem.writeAsStringAsync(uri, rawLRC, { encoding: 'utf8' });
+            Alert.alert('Success', `Saved ${filename} to folder.`);
+            setShowShareModal(false);
+            return;
+          }
+        } else {
+          console.warn('StorageAccessFramework is undefined. Falling back to Share sheet.');
         }
       }
 
-      // 3. Fallback for iOS/Others: Use System Share Sheet
-      const fileUri = FileSystem.cacheDirectory + filename;
+      // 3. Fallback for iOS/Others or Android if SAF is unavailable: Use System Share Sheet
+      const fileUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory || '') + filename;
       await FileSystem.writeAsStringAsync(fileUri, rawLRC, { 
-        encoding: FileSystem.EncodingType.UTF8 
+        encoding: 'utf8' 
       });
       
       const isSharingAvailable = await Sharing.isAvailableAsync();
@@ -180,7 +377,10 @@ export default function EditorScreen() {
 
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: asset.uri },
-        { shouldPlay: false },
+        { 
+          shouldPlay: false,
+          progressUpdateIntervalMillis: 100, // Smoother updates for player
+        },
         onPlaybackStatusUpdate
       );
       setSound(newSound);
@@ -209,6 +409,7 @@ export default function EditorScreen() {
   };
 
   const handleFABPress = async () => {
+    triggerHaptic('light');
     setEditingLineId(null);
     setPendingText('');
     if (syncState === 'idle') {
@@ -232,6 +433,7 @@ export default function EditorScreen() {
   };
 
   const saveLyricLine = () => {
+    triggerHaptic('success');
     let updatedLyrics = [...lyrics];
     if (editingLineId) {
       updatedLyrics = updatedLyrics.map((l) => 
@@ -269,41 +471,127 @@ export default function EditorScreen() {
   };
 
   useEffect(() => {
-    if (isSyncMode) {
+    if (editorMode !== 'raw') {
       setLyrics(parseLRCToLyrics(rawLRC));
     }
-  }, [isSyncMode]);
+  }, [editorMode, rawLRC]);
+
+  const currentLineIndex = lyrics.findIndex((line, index) => {
+    const nextLine = lyrics[index + 1];
+    return position >= line.start && (!nextLine || position < nextLine.start);
+  });
+
+  // Auto-scroll effect
+  useEffect(() => {
+    if (editorMode === 'play' && currentLineIndex !== -1 && playerScrollRef.current) {
+      let offset = 0;
+      for (let i = 0; i < currentLineIndex; i++) {
+        // Approximate height if not measured yet
+        offset += lineHeights.current[i] || 60; 
+      }
+      
+      playerScrollRef.current.scrollTo({
+        y: offset,
+        animated: true,
+      });
+    }
+  }, [currentLineIndex, editorMode]);
+
+  const handleReset = () => {
+    Alert.alert(
+      'Reset Editor',
+      'This will clear all lyrics and metadata. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reset', 
+          style: 'destructive',
+          onPress: async () => {
+            setRawLRC('');
+            setLyrics([]);
+            setTrackName('');
+            setArtistName('');
+            setAlbumName('');
+            setAudioFile(null);
+            if (sound) await sound.unloadAsync();
+            setSound(null);
+            await AsyncStorage.multiRemove(Object.values(EDITOR_STORAGE_KEYS));
+            triggerHaptic('success');
+          }
+        }
+      ]
+    );
+  };
+
+  const applyOffset = (ms: number) => {
+    const seconds = ms / 1000;
+    const updatedLyrics = lyrics.map(l => ({
+      ...l,
+      start: Math.max(0, l.start + seconds),
+      end: l.end ? Math.max(0, l.end + seconds) : null,
+    }));
+    setLyrics(updatedLyrics);
+    setRawLRC(formatLyricsToLRC(updatedLyrics));
+    triggerHaptic('medium');
+  };
 
   const handlePublish = async () => {
-    if (!trackName || !artistName) {
+    const trimmedTrack = trackName.trim();
+    const trimmedArtist = artistName.trim();
+    const trimmedAlbum = albumName.trim();
+
+    if (!trimmedTrack || !trimmedArtist) {
       Alert.alert('Metadata Required', 'Please enter at least Track Name and Artist Name.');
       return;
     }
 
     setIsPublishing(true);
     setPublishStatus('Initializing...');
+    abortControllerRef.current = new AbortController();
+
     try {
+      console.log('Attempting to publish:', { trimmedTrack, trimmedArtist, duration });
       await publishLyrics(
-        trackName,
-        artistName,
-        albumName,
+        trimmedTrack,
+        trimmedArtist,
+        trimmedAlbum,
         duration,
         rawLRC,
         userAgent,
         useRemoteSolver,
         solverUrl,
         solverKey,
-        (msg) => setPublishStatus(msg)
+        (msg) => {
+          console.log('Publish Progress:', msg);
+          setPublishStatus(msg);
+        },
+        abortControllerRef.current.signal
       );
+      console.log('Publish successful!');
       Alert.alert('Success', 'Lyrics published to LRCLIB!');
       setShowShareModal(false);
       setPublishStatus('');
     } catch (error: any) {
-      Alert.alert('Publish Error', error.message || 'An unknown error occurred.');
-      setPublishStatus(`Error: ${error.message}`);
+      if (error.message === 'Publish aborted' || error.message === 'Solver aborted') {
+        console.log('Publishing was cancelled by user.');
+      } else {
+        console.error('Final Catch in handlePublish:', error);
+        Alert.alert('Publish Error', error.message || 'An unknown error occurred.');
+        setPublishStatus(`Error: ${error.message}`);
+      }
     } finally {
       setIsPublishing(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const handleCancelPublish = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setShowShareModal(false);
+    setIsPublishing(false);
+    setPublishStatus('');
   };
 
 
@@ -360,17 +648,16 @@ export default function EditorScreen() {
         </View>
       </View>
 
-      {/* Sync Toggle */}
-      <View style={styles.toggleRow}>
-        <Text style={{ color: theme.secondaryText }}>Raw</Text>
-        <Switch
-          value={isSyncMode}
-          onValueChange={setIsSyncMode}
-          trackColor={{ false: theme.border, true: theme.tint }}
-          thumbColor="#fff"
+      {/* Mode Toggle Pill */}
+      <View style={styles.toggleContainer}>
+        <TouchableOpacity onPress={handleReset} style={{ padding: 4 }}>
+          <Trash2 color="#ff4444" size={24} />
+        </TouchableOpacity>
+        <ModeTogglePill 
+          currentMode={editorMode} 
+          onModeChange={setEditorMode} 
+          theme={theme} 
         />
-        <Text style={{ color: theme.secondaryText }}>Sync</Text>
-        <View style={{ flex: 1, backgroundColor: 'transparent' }} />
         <TouchableOpacity onPress={() => {
           setShareStep('options');
           setShowShareModal(true);
@@ -381,39 +668,43 @@ export default function EditorScreen() {
 
       {/* Content Area */}
       <View style={[styles.contentArea, { borderColor: theme.border }]}>
-        {isSyncMode ? (
-          <ScrollView style={styles.lyricList}>
-            {lyrics.length === 0 && (
+        {editorMode === 'sync' ? (
+          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+            <View style={styles.offsetRow}>
+              <Text style={[styles.offsetLabel, { color: theme.secondaryText }]}>Global Offset:</Text>
+              <TouchableOpacity style={[styles.offsetButton, { borderColor: theme.border }]} onPress={() => applyOffset(-100)}>
+                <Text style={{ color: theme.tint, fontSize: 12 }}>-100ms</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.offsetButton, { borderColor: theme.border }]} onPress={() => applyOffset(100)}>
+                <Text style={{ color: theme.tint, fontSize: 12 }}>+100ms</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={lyrics}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => (
+              <SyncLyricLine
+                line={item}
+                isActive={currentLineIndex === index}
+                onPress={handleEditLine}
+                onDelete={deleteLyricLine}
+                onSeek={onSliderValueChange}
+                theme={theme}
+              />
+            )}
+            ListEmptyComponent={
               <Text style={[styles.emptyHint, { color: theme.secondaryText }]}>
                 No lyrics yet. Use the + button to start syncing.
               </Text>
-            )}
-            {lyrics.map((line) => (
-              <Pressable 
-                key={line.id} 
-                style={({ pressed }) => [
-                  styles.lyricLine, 
-                  { borderBottomColor: theme.border },
-                  pressed && { backgroundColor: theme.border }
-                ]}
-                onPress={() => handleEditLine(line)}
-              >
-                <View style={styles.lyricLineInfo}>
-                  <TouchableOpacity onPress={() => onSliderValueChange(line.start)}>
-                    <Text style={[styles.lyricTimestamp, { color: theme.tint }]}>
-                      [{formatTime(line.start)}]
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.lyricText}>{line.text}</Text>
-                </View>
-                <TouchableOpacity onPress={() => deleteLyricLine(line.id)} style={{ padding: 5 }}>
-                  <Trash2 color="#ff4444" size={18} />
-                </TouchableOpacity>
-              </Pressable>
-            ))}
-            <View style={{ height: 100, backgroundColor: 'transparent' }} />
-          </ScrollView>
-        ) : (
+            }
+            ListFooterComponent={<View style={{ height: 100 }} />}
+            removeClippedSubviews={true}
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+          />
+          </View>
+        ) : editorMode === 'raw' ? (
           <TextInput
             style={[styles.rawInput, { color: theme.text }]}
             multiline
@@ -422,11 +713,43 @@ export default function EditorScreen() {
             placeholder="Paste raw LRC or plain text here..."
             placeholderTextColor={theme.secondaryText}
           />
+        ) : (
+          <View style={styles.playerContainer}>
+             {lyrics.length === 0 ? (
+                <Text style={[styles.emptyHint, { color: theme.secondaryText }]}>
+                  No lyrics to play. Sync some first!
+                </Text>
+             ) : (
+                <ScrollView 
+                  ref={playerScrollRef}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.playerScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {lyrics.map((line, index) => (
+                    <View 
+                      key={line.id}
+                      onLayout={(e) => {
+                        lineHeights.current[index] = e.nativeEvent.layout.height;
+                      }}
+                      style={{ alignItems: 'center', width: '100%' }}
+                    >
+                      <AnimatedLyricLine 
+                        text={line.text} 
+                        isActive={currentLineIndex === index} 
+                        theme={theme}
+                      />
+                    </View>
+                  ))}
+                  <View style={{ height: 400 }} />
+                </ScrollView>
+             )}
+          </View>
         )}
       </View>
 
       {/* FAB */}
-      {isSyncMode && sound && (
+      {editorMode === 'sync' && sound && (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.tint }]}
           onPress={handleFABPress}
@@ -562,7 +885,7 @@ export default function EditorScreen() {
                 <View style={styles.modalActions}>
                   <TouchableOpacity
                     style={[styles.modalButton, { backgroundColor: theme.border, marginRight: 10 }]}
-                    onPress={() => setShowShareModal(false)}
+                    onPress={handleCancelPublish}
                   >
                     <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancel</Text>
                   </TouchableOpacity>
@@ -632,12 +955,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 40,
   },
-  toggleRow: {
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+    marginBottom: 15,
+    backgroundColor: 'transparent',
+  },
+  pill: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 40,
+    borderRadius: 20,
+    padding: 4,
+  },
+  pillSegment: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  offsetRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 10,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    marginBottom: 5,
     backgroundColor: 'transparent',
+  },
+  offsetLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  offsetButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   contentArea: {
     flex: 1,
@@ -682,6 +1044,27 @@ const styles = StyleSheet.create({
   lyricText: {
     flex: 1,
     fontSize: 15,
+  },
+  playerContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  playerScrollContent: {
+    paddingVertical: '50%',
+    alignItems: 'center',
+  },
+  playerLine: {
+    fontSize: 22,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginVertical: 12,
+    paddingHorizontal: 20,
+    opacity: 0.6,
+  },
+  playerLineActive: {
+    fontSize: 28,
+    fontWeight: '800',
+    opacity: 1,
   },
   fab: {
     position: 'absolute',

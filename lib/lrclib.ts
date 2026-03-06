@@ -57,30 +57,39 @@ const NOTIFICATION_ID = 'echo-publish-progress';
 
 async function showProgressNotification(title: string, body: string, isDone: boolean = false) {
   if (Platform.OS === 'web') return;
-  
-  await Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: isDone,
-      shouldSetBadge: false,
-    }),
-  });
-
-  // Basic request for permissions if not already granted
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    await Notifications.requestPermissionsAsync();
+  if (!Notifications || !Notifications.scheduleNotificationAsync) {
+    console.warn('Notifications module is not available');
+    return;
   }
+  
+  try {
+    await Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: isDone,
+        shouldSetBadge: false,
+      }),
+    });
 
-  await Notifications.presentNotificationAsync({
-    identifier: NOTIFICATION_ID,
-    content: {
-      title,
-      body,
-      sticky: !isDone,
-      priority: Notifications.AndroidNotificationPriority.LOW,
-    },
-  });
+    // Basic request for permissions if not already granted
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      await Notifications.requestPermissionsAsync();
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: NOTIFICATION_ID,
+      content: {
+        title,
+        body,
+        sticky: !isDone,
+        priority: Notifications.AndroidNotificationPriority.LOW,
+      },
+      trigger: null, // Send immediately
+    });
+  } catch (e) {
+    console.error('Failed to show notification:', e);
+  }
 }
 
 interface ChallengeResponse {
@@ -91,15 +100,18 @@ interface ChallengeResponse {
 async function solveChallenge(
   prefix: string, 
   target: string, 
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  signal?: AbortSignal
 ): Promise<string> {
   let nonce = 0;
   const startTime = Date.now();
   const lowerTarget = target.toLowerCase();
   
   while (true) {
-    // Perform 5000 hashes per batch to improve speed
-    for (let i = 0; i < 5000; i++) {
+    if (signal?.aborted) throw new Error('Solver aborted');
+
+    // Perform 10000 hashes per batch to significantly improve speed
+    for (let i = 0; i < 10000; i++) {
       const hash = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         prefix + nonce
@@ -115,11 +127,12 @@ async function solveChallenge(
     }
     
     const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
-    const msg = `Solving PoW: nonce ${nonce} (${elapsedSecs}s elapsed)...`;
+    const hashesPerSec = Math.floor(nonce / elapsedSecs || 0);
+    const msg = `Solving PoW: nonce ${nonce} (${hashesPerSec} H/s)...`;
     onProgress?.(msg);
     
-    // Update notification every 50k nonces
-    if (nonce % 50000 === 0) {
+    // Update notification every 100k nonces
+    if (nonce % 100000 === 0) {
       await showProgressNotification('Echo Solver (Local)', msg);
     }
     
@@ -133,13 +146,21 @@ async function fetchRemoteSolver(
   key: string,
   prefix: string,
   target: string,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  signal?: AbortSignal
 ): Promise<{ nonce: string; elapsed: number }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${url}/solve`, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.setRequestHeader('x-solver-key', key || '');
+
+    if (signal) {
+      signal.onabort = () => {
+        xhr.abort();
+        reject(new Error('Solver aborted'));
+      };
+    }
 
     let lastIndex = 0;
 
@@ -205,17 +226,20 @@ export async function publishLyrics(
   useRemoteSolver?: boolean,
   solverUrl?: string,
   solverKey?: string,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  signal?: AbortSignal
 ) {
   const baseUrl = 'https://lrclib.net/api';
 
   try {
+    if (signal?.aborted) throw new Error('Publish aborted');
     onProgress?.('Requesting challenge from LRCLIB...');
     await showProgressNotification('Echo Publisher', 'Requesting challenge from LRCLIB...');
 
     const challengeRes = await fetch(`${baseUrl}/request-challenge`, {
       method: 'POST',
       headers: { 'User-Agent': userAgent },
+      signal,
     });
 
     if (!challengeRes.ok) {
@@ -233,20 +257,31 @@ export async function publishLyrics(
         solverKey || '',
         challenge.prefix,
         challenge.target,
-        onProgress
+        onProgress,
+        signal
       );
       nonce = solverData.nonce;
       onProgress?.(`Remote solver finished in ${solverData.elapsed}s.`);
       await showProgressNotification('Echo Solver (Remote)', `Solved in ${solverData.elapsed}s!`, true);
     } else {
       onProgress?.('Solving Proof-of-Work challenge (Local)...');
-      nonce = await solveChallenge(challenge.prefix, challenge.target, onProgress);
+      nonce = await solveChallenge(challenge.prefix, challenge.target, onProgress, signal);
     }
 
     onProgress?.('Publishing lyrics to database...');
     await showProgressNotification('Echo Publisher', 'Finalizing upload to LRCLIB...');
 
-    const durationSec = Math.round(duration);
+    const durationSec = Math.max(1, Math.round(duration));
+    const publishPayload = {
+      trackName,
+      artistName,
+      albumName: albumName || '',
+      duration: durationSec,
+      lyrics: lrcText,
+    };
+
+    console.log('Publishing Payload:', JSON.stringify(publishPayload, null, 2));
+
     const publishRes = await fetch(`${baseUrl}/publish`, {
       method: 'POST',
       headers: {
@@ -254,22 +289,27 @@ export async function publishLyrics(
         'User-Agent': userAgent,
         'X-Publish-Token': `${challenge.prefix}:${nonce}`,
       },
-      body: JSON.stringify({
-        trackName,
-        artistName,
-        albumName,
-        duration: durationSec,
-        lyrics: lrcText,
-      }),
+      body: JSON.stringify(publishPayload),
+      signal,
     });
 
     if (!publishRes.ok) {
-      const errorData = await publishRes.json();
+      let errorMsg = `Publish failed: ${publishRes.statusText}`;
+      try {
+        const errorData = await publishRes.json();
+        console.error('LRCLIB Error Response:', errorData);
+        errorMsg = errorData.message || errorMsg;
+      } catch (e) {
+        const text = await publishRes.text();
+        console.error('LRCLIB Error Body (Text):', text);
+      }
+      
       await showProgressNotification('Echo Publisher', 'Failed to publish lyrics.', true);
-      throw new Error(errorData.message || `Publish failed: ${publishRes.statusText}`);
+      throw new Error(errorMsg);
     }
 
     const data = await publishRes.json();
+    console.log('LRCLIB Success:', data);
     await showProgressNotification('Echo Publisher', 'Successfully published to LRCLIB!', true);
     return data;
   } catch (error: any) {

@@ -40,6 +40,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Create .env file
+        run: |
+          echo "EXPO_PUBLIC_SOLVER_URL=${{ secrets.SOLVER_URL }}" > .env
+          echo "EXPO_PUBLIC_SOLVER_KEY=${{ secrets.SOLVER_KEY }}" >> .env
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:

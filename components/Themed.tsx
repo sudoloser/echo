@@ -20,8 +20,8 @@ export type ScrollViewProps = ThemeProps & DefaultScrollView['props'];
 
 export function useTheme() {
   const theme = useColorScheme();
-  const { accentKey } = useAppSettings();
-  return Colors(accentKey)[theme];
+  const { accentKey, customTheme } = useAppSettings();
+  return Colors(accentKey, customTheme)[theme];
 }
 
 export function useThemeColor(
@@ -29,14 +29,14 @@ export function useThemeColor(
   colorName: string
 ) {
   const theme = useColorScheme();
-  const { accentKey } = useAppSettings();
+  const { accentKey, customTheme } = useAppSettings();
   const colorFromProps = props[theme as 'light' | 'dark'];
 
   if (colorFromProps) {
     return colorFromProps;
   } else {
     // @ts-ignore
-    return Colors(accentKey)[theme][colorName];
+    return Colors(accentKey, customTheme)[theme][colorName];
   }
 }
 

@@ -13,13 +13,22 @@ export const ACCENT_COLORS = {
   violet: '#7c3aed',
 };
 
-export type AccentKey = keyof typeof ACCENT_COLORS;
+export type AccentKey = keyof typeof ACCENT_COLORS | 'custom';
+
+export interface CustomTheme {
+  background: string;
+  text: string;
+  secondaryText: string;
+  tint: string;
+}
 
 interface AppSettingsContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   accentKey: AccentKey;
   setAccentKey: (key: AccentKey) => void;
+  customTheme: CustomTheme;
+  setCustomTheme: (theme: CustomTheme) => void;
   userAgent: string;
   setUserAgent: (ua: string) => void;
   pauseOnEnd: boolean;
@@ -45,14 +54,13 @@ const STORAGE_KEYS = {
   SOLVER_URL: '@echo_settings_solver_url',
   SOLVER_KEY: '@echo_settings_solver_key',
   USE_REMOTE_SOLVER: '@echo_settings_use_remote_solver',
+  CUSTOM_THEME: '@echo_settings_custom_theme',
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
 
-// Default values that can be "injected" at build time via environment variables
-// Use process.env for web/build-time injection
-const DEFAULT_SOLVER_URL = process.env.EXPO_PUBLIC_SOLVER_URL || '';
-const DEFAULT_SOLVER_KEY = process.env.EXPO_PUBLIC_SOLVER_KEY || '';
+const DEFAULT_SOLVER_URL = String(process.env.EXPO_PUBLIC_SOLVER_URL || '');
+const DEFAULT_SOLVER_KEY = String(process.env.EXPO_PUBLIC_SOLVER_KEY || '');
 
 export function AppSettingsProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useNativeColorScheme() ?? 'light';
@@ -60,6 +68,12 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [isInitialized, setIsInitialized] = useState(false);
   const [theme, setThemeState] = useState<Theme>('system');
   const [accentKey, setAccentKeyState] = useState<AccentKey>('slate');
+  const [customTheme, setCustomThemeState] = useState<CustomTheme>({
+    background: '#ffffff',
+    text: '#000000',
+    secondaryText: '#666666',
+    tint: '#0f172a',
+  });
   const [userAgent, setUserAgentState] = useState('Echo Lyric Editor (https://github.com/sudoloser/echo)');
   const [pauseOnEnd, setPauseOnEndState] = useState(true);
   const [rewindAmount, setRewindAmountState] = useState(1.5);
@@ -67,7 +81,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [solverKey, setSolverKeyState] = useState(DEFAULT_SOLVER_KEY);
   const [useRemoteSolver, setUseRemoteSolverState] = useState(true);
 
-  // Load settings on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -79,7 +92,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           savedRewind, 
           savedSolver, 
           savedKey,
-          savedUseRemote
+          savedUseRemote,
+          savedCustomTheme
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
@@ -89,9 +103,9 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           AsyncStorage.getItem(STORAGE_KEYS.SOLVER_URL),
           AsyncStorage.getItem(STORAGE_KEYS.SOLVER_KEY),
           AsyncStorage.getItem(STORAGE_KEYS.USE_REMOTE_SOLVER),
+          AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_THEME),
         ]);
 
-        // Batch these updates
         if (savedTheme) setThemeState(savedTheme as Theme);
         if (savedAccent) setAccentKeyState(savedAccent as AccentKey);
         if (savedUA) setUserAgentState(savedUA);
@@ -99,6 +113,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         if (savedSolver) setSolverUrlState(savedSolver);
         if (savedKey) setSolverKeyState(savedKey);
         if (savedUseRemote) setUseRemoteSolverState(savedUseRemote === 'true');
+        if (savedCustomTheme) setCustomThemeState(JSON.parse(savedCustomTheme));
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
@@ -106,7 +121,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
       } catch (e) {
         console.error('Failed to load settings:', e);
       } finally {
-        // Ensure this happens after all setters have been called
         setIsInitialized(true);
       }
     };
@@ -114,7 +128,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     loadSettings();
   }, []);
 
-  // Persistent Setters
   const setTheme = async (value: Theme) => {
     setThemeState(value);
     await AsyncStorage.setItem(STORAGE_KEYS.THEME, value);
@@ -123,6 +136,11 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const setAccentKey = async (value: AccentKey) => {
     setAccentKeyState(value);
     await AsyncStorage.setItem(STORAGE_KEYS.ACCENT, value);
+  };
+
+  const setCustomTheme = async (value: CustomTheme) => {
+    setCustomThemeState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_THEME, JSON.stringify(value));
   };
 
   const setUserAgent = async (value: string) => {
@@ -164,6 +182,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setTheme, 
         accentKey,
         setAccentKey,
+        customTheme,
+        setCustomTheme,
         userAgent, 
         setUserAgent, 
         pauseOnEnd, 
@@ -184,7 +204,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     </AppSettingsContext.Provider>
   );
 }
-
 
 export function useAppSettings() {
   const context = useContext(AppSettingsContext);
