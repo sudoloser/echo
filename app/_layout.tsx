@@ -5,7 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { AppSettingsProvider, useAppSettings } from '@/context/AppSettingsContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -40,11 +40,15 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AppSettingsProvider>
+      <RootLayoutNav />
+    </AppSettingsProvider>
+  );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { colorScheme } = useAppSettings();
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

@@ -1,6 +1,11 @@
-import { useColorScheme as useColorSchemeCore } from 'react-native';
+import { useAppSettings } from '@/context/AppSettingsContext';
 
 export const useColorScheme = () => {
-  const coreScheme = useColorSchemeCore();
-  return coreScheme === 'unspecified' ? 'light' : coreScheme;
+  try {
+    const { colorScheme } = useAppSettings();
+    return colorScheme;
+  } catch (e) {
+    // Fallback if context is not available (e.g. outside Provider)
+    return 'light';
+  }
 };

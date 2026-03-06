@@ -1,19 +1,19 @@
-const tintColorLight = '#2f95dc';
-const tintColorDark = '#fff';
+const tintColorLight = '#0f172a'; // Slate 900
+const tintColorDark = '#f8fafc';  // Slate 50
 
 export default {
   light: {
-    text: '#000',
-    background: '#fff',
+    text: '#0f172a',
+    background: '#ffffff',
     tint: tintColorLight,
-    tabIconDefault: '#ccc',
+    tabIconDefault: '#94a3b8',
     tabIconSelected: tintColorLight,
   },
   dark: {
-    text: '#fff',
-    background: '#000',
+    text: '#f8fafc',
+    background: '#020617',
     tint: tintColorDark,
-    tabIconDefault: '#ccc',
+    tabIconDefault: '#475569',
     tabIconSelected: tintColorDark,
   },
 };
