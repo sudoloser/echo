@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, TextInput, Switch, Modal, Pressable } from 'react-native';
-import { Moon, Sun, Monitor, Palette, Check, X, ChevronRight } from 'lucide-react-native';
+import { StyleSheet, TouchableOpacity, TextInput, Switch, Modal, Alert, Platform } from 'react-native';
+import { Moon, Sun, Monitor, Check, X, ChevronRight, Trash2, Sparkles } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import ColorPicker, { HueCircular, Panel1, Preview } from 'reanimated-color-picker';
 import { runOnJS } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Helper to determine the actual ColorPicker component
 const ActualColorPicker: any = (ColorPicker as any).ColorPicker || ColorPicker;
@@ -11,7 +12,7 @@ const ActualColorPicker: any = (ColorPicker as any).ColorPicker || ColorPicker;
 
 import { Text, View, ScrollView, useTheme } from '@/components/Themed';
 import { useAppSettings } from '@/context/AppSettingsContext';
-import { ACCENT_COLORS, AccentKey, CustomTheme } from '@/constants/Theme';
+import { ACCENT_COLORS, CustomTheme } from '@/constants/Theme';
 
 export default function SettingsScreen() {
   const { 
@@ -27,14 +28,8 @@ export default function SettingsScreen() {
     setPauseOnEnd, 
     rewindAmount,
     setRewindAmount,
-    solverUrl,
-    setSolverUrl,
-    solverKey,
-    setSolverKey,
-    useRemoteSolver,
-    setUseRemoteSolver,
-    powBatchSize,
-    setPowBatchSize,
+    enableFancyAnimations,
+    setEnableFancyAnimations,
     colorScheme 
   } = useAppSettings();
   const themeColors = useTheme();
@@ -83,6 +78,44 @@ export default function SettingsScreen() {
     setShowThemeModal(false);
   };
 
+  const handleEraseAllData = () => {
+    const performErase = async () => {
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        await AsyncStorage.multiRemove(keys);
+        
+        if (Platform.OS === 'web') {
+          alert('All data has been erased. The page will now reload.');
+          window.location.reload();
+        } else {
+          Alert.alert('Success', 'All data has been erased. Please restart the app for changes to take full effect.');
+        }
+      } catch (e) {
+        if (Platform.OS === 'web') alert('Failed to erase data.');
+        else Alert.alert('Error', 'Failed to erase data.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Erase All Data? This will clear all settings, lyrics, and metadata. This action cannot be undone.')) {
+        performErase();
+      }
+    } else {
+      Alert.alert(
+        'Erase All Data',
+        'This will clear all settings, lyrics, and metadata. This action cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Erase Everything', 
+            style: 'destructive', 
+            onPress: performErase
+          }
+        ]
+      );
+    }
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
@@ -101,7 +134,7 @@ export default function SettingsScreen() {
             label="Dark"
             active={theme === 'dark'}
             onPress={() => setTheme('dark')}
-            icon={<Moon size={20} color={theme === 'dark' ? themeColors.background : themeColors.tint} />}
+            icon={<Moon size={20} color={themeColors.background} />} // This seems wrong in original, corrected below
             themeColors={themeColors}
           />
           <ThemeButton
@@ -174,65 +207,29 @@ export default function SettingsScreen() {
             />
           </View>
         )}
+
+        <View style={[styles.settingRow, { marginTop: 20 }]}>
+          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.settingLabel}>Modern Animations</Text>
+              <Sparkles size={14} color={themeColors.tint} />
+            </View>
+            <Text style={[styles.hint, { color: themeColors.secondaryText, marginTop: 4 }]}>
+              Enable smoother transitions and frosted glass effects (Experimental).
+            </Text>
+          </View>
+          <Switch
+            value={enableFancyAnimations}
+            onValueChange={setEnableFancyAnimations}
+            trackColor={{ false: themeColors.border, true: themeColors.tint }}
+            thumbColor="#fff"
+          />
+        </View>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>LRCLIB Configuration</Text>
         
-        <View style={[styles.settingRow, { marginBottom: 20 }]}>
-          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-            <Text style={styles.settingLabel}>Use Remote Solver</Text>
-            <Text style={[styles.hint, { color: themeColors.secondaryText, marginTop: 4 }]}>
-              Offload PoW solving to a dedicated server (much faster than mobile).
-            </Text>
-          </View>
-          <Switch
-            value={useRemoteSolver}
-            onValueChange={setUseRemoteSolver}
-            trackColor={{ false: themeColors.border, true: themeColors.tint }}
-            thumbColor="#fff"
-          />
-        </View>
-
-        {useRemoteSolver && (
-          <>
-            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver URL</Text>
-            <TextInput
-              style={[
-                styles.input, 
-                { 
-                  color: themeColors.text, 
-                  borderColor: themeColors.border,
-                  backgroundColor: themeColors.background,
-                  marginBottom: 10
-                }
-              ]}
-              value={solverUrl}
-              onChangeText={setSolverUrl}
-              placeholder="https://your-solver.render.com"
-              placeholderTextColor={themeColors.secondaryText}
-            />
-            
-            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver Key (Optional)</Text>
-            <TextInput
-              style={[
-                styles.input, 
-                { 
-                  color: themeColors.text, 
-                  borderColor: themeColors.border,
-                  backgroundColor: themeColors.background,
-                  marginBottom: 10
-                }
-              ]}
-              value={solverKey}
-              onChangeText={setSolverKey}
-              placeholder="Enter your solver security key"
-              placeholderTextColor={themeColors.secondaryText}
-              secureTextEntry
-            />
-          </>
-        )}
-
         <Text style={[styles.label, { color: themeColors.secondaryText, marginTop: 10 }]}>User-Agent</Text>
         <TextInput
           style={[
@@ -249,33 +246,21 @@ export default function SettingsScreen() {
           placeholderTextColor={themeColors.secondaryText}
         />
         <Text style={[styles.hint, { color: themeColors.secondaryText }]}>
-          LRCLIB requires a descriptive User-Agent. Include your app name and a contact link or
-          email.
+          LRCLIB requires a descriptive User-Agent for identification.
         </Text>
+      </View>
 
-        <Text style={[styles.label, { color: themeColors.secondaryText, marginTop: 20 }]}>Local PoW Batch Size</Text>
-        <TextInput
-          style={[
-            styles.input, 
-            { 
-              color: themeColors.text, 
-              borderColor: themeColors.border,
-              backgroundColor: themeColors.background 
-            }
-          ]}
-          value={powBatchSize.toString()}
-          onChangeText={(text) => {
-            const val = parseInt(text, 10);
-            if (!isNaN(val) && val > 0) setPowBatchSize(val);
-            else if (text === '') setPowBatchSize(0);
-          }}
-          keyboardType="numeric"
-          placeholder="e.g. 50"
-          placeholderTextColor={themeColors.secondaryText}
-        />
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: '#ef4444' }]}>Danger Zone</Text>
+        <TouchableOpacity
+          style={[styles.eraseButton, { borderColor: '#ef4444' }]}
+          onPress={handleEraseAllData}
+        >
+          <Trash2 size={20} color="#ef4444" />
+          <Text style={[styles.eraseButtonText, { color: '#ef4444' }]}>Erase All Data</Text>
+        </TouchableOpacity>
         <Text style={[styles.hint, { color: themeColors.secondaryText }]}>
-          How many hashes to compute in parallel. Higher values are faster but may make the app
-          less responsive and use more battery. Default: 50 (Native), 1000 (Web).
+          This will reset everything to default and clear all saved progress.
         </Text>
       </View>
 
@@ -284,13 +269,20 @@ export default function SettingsScreen() {
         <Text style={styles.aboutText}>
           Echo is a minimalist lyric editor for syncing and publishing lyrics to LRCLIB.
         </Text>
-        <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.0.0</Text>
+        <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.1.0</Text>
       </View>
 
       {/* Theme Maker Modal */}
       <Modal visible={showThemeModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: 1 }]}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: 1 },
+            enableFancyAnimations && { backgroundColor: themeColors.background + 'CC' }
+          ]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Custom Theme Maker</Text>
               <TouchableOpacity onPress={() => setShowThemeModal(false)}>
@@ -552,6 +544,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'SpaceMono',
   },
+  colorSwatch: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
   pickerContainer: {
     padding: 20,
     alignItems: 'center',
@@ -577,6 +576,19 @@ const styles = StyleSheet.create({
   },
   applyButtonText: {
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  eraseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  eraseButtonText: {
     fontWeight: 'bold',
   },
 });

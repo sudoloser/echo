@@ -40,16 +40,8 @@ jobs:
       - name: Export Web
         run: npx expo export --platform web
         env:
-          EXPO_PUBLIC_SOLVER_URL: ${{ secrets.SOLVER_URL }}
-          EXPO_PUBLIC_SOLVER_KEY: ${{ secrets.SOLVER_KEY }}
+          EXPO_PUBLIC_BUILD_TIME: $(date +%s)
           EXPO_PUBLIC_BASE_URL: /echo
-
-      - name: Export Android Bundle
-        run: |
-          npx expo export:embed --platform android --dev false --entry-file node_modules/expo-router/entry.js --bundle-output dist/echo.js --assets-dest dist/assets
-        env:
-          EXPO_PUBLIC_SOLVER_URL: ${{ secrets.SOLVER_URL }}
-          EXPO_PUBLIC_SOLVER_KEY: ${{ secrets.SOLVER_KEY }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

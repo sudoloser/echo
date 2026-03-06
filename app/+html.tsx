@@ -19,6 +19,13 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta property="og:description" content="A minimalist, open-source lyric editor for creating, syncing, and publishing time-tagged lyrics to LRCLIB." />
         <meta property="og:image" content="https://sudoloser.github.io/echo/echo.png" />
 
+        {/* iOS PWA support */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Echo" />
+        <meta name="theme-color" content="#000000" />
+        <link rel="apple-touch-icon" href="/echo/echo.png" />
+
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:url" content="https://sudoloser.github.io/echo/" />

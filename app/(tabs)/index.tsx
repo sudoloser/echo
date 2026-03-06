@@ -11,6 +11,7 @@ import {
   Platform,
   LayoutChangeEvent,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
@@ -35,6 +36,11 @@ import {
   CloudUpload,
   FileDown,
   ChevronLeft,
+  Copy,
+  CheckSquare,
+  Gauge,
+  Search,
+  X,
 } from 'lucide-react-native';
 import Slider from '@react-native-community/slider';
 import { StatusBar } from 'expo-status-bar';
@@ -42,6 +48,8 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppWebView from '@/components/AppWebView';
+import { BlurView } from 'expo-blur';
 
 import { Text, View, useTheme } from '@/components/Themed';
 import { useAppSettings } from '@/context/AppSettingsContext';
@@ -49,7 +57,7 @@ import {
   LyricLine,
   formatLyricsToLRC,
   parseLRCToLyrics,
-  publishLyrics,
+  isSynced,
 } from '@/lib/lrclib';
 
 // Memoized Sync Line to prevent re-renders on every playback tick
@@ -125,6 +133,7 @@ function AnimatedLyricLine({
   isActive: boolean, 
   theme: any 
 }) {
+  const { enableFancyAnimations } = useAppSettings();
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0.6);
   const activeProgress = useSharedValue(isActive ? 1 : 0);
@@ -147,12 +156,13 @@ function AnimatedLyricLine({
   }, [theme.secondaryText]);
 
   useEffect(() => {
-    scale.value = withSpring(isActive ? 1.05 : 1, { damping: 15, stiffness: 100 });
-    opacity.value = withTiming(isActive ? 1 : 0.6, { duration: 300 });
+    scale.value = withSpring(isActive ? (enableFancyAnimations ? 1.1 : 1.05) : 1, { damping: 15, stiffness: 100 });
+    opacity.value = withTiming(isActive ? 1 : (enableFancyAnimations ? 0.4 : 0.6), { duration: 300 });
     activeProgress.value = withTiming(isActive ? 1 : 0, { duration: 300 });
-  }, [isActive]);
+  }, [isActive, enableFancyAnimations]);
 
   const animatedStyle = useAnimatedStyle(() => {
+    const glowColor = safeTint.value;
     return {
       transform: [{ scale: scale.value }],
       opacity: opacity.value,
@@ -161,11 +171,27 @@ function AnimatedLyricLine({
         [0, 1],
         [safeSecondary.value, safeTint.value]
       ),
+      // Glowing lyrics effect
+      textShadowColor: enableFancyAnimations ? glowColor : 'transparent',
+      textShadowOffset: { width: 0, height: 0 },
+      textShadowRadius: enableFancyAnimations ? interpolateColor(
+        activeProgress.value,
+        [0, 1],
+        ['rgba(0,0,0,0)', glowColor + '80'] // Using interpolation for shadow radius is tricky, but textShadowRadius itself is a number
+      ) === 'transparent' ? 0 : withTiming(isActive ? 15 : 0, { duration: 300 }) : 0,
+    };
+  });
+
+  // Re-calculate shadow radius separately for better control
+  const animatedTextStyle = useAnimatedStyle(() => {
+    return {
+      textShadowRadius: enableFancyAnimations ? withTiming(isActive ? 15 : 0, { duration: 300 }) : 0,
+      textShadowColor: enableFancyAnimations ? safeTint.value + '80' : 'transparent',
     };
   });
 
   return (
-    <Animated.Text style={[styles.playerLine, animatedStyle]}>
+    <Animated.Text style={[styles.playerLine, animatedStyle, animatedTextStyle]}>
       {text}
     </Animated.Text>
   );
@@ -177,25 +203,94 @@ const ModeTogglePill = memo(({
   onModeChange, 
   theme 
 }: { 
-  currentMode: string, 
+  currentMode: 'raw' | 'sync' | 'play', 
   onModeChange: (mode: 'raw' | 'sync' | 'play') => void, 
   theme: any 
 }) => {
+  const { enableFancyAnimations, colorScheme } = useAppSettings();
+  const modes: ('raw' | 'sync' | 'play')[] = ['raw', 'sync', 'play'];
+  const activeIndex = modes.indexOf(currentMode);
+  
+  const indicatorPosition = useSharedValue(activeIndex);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    indicatorPosition.value = withSpring(activeIndex, {
+      damping: 20,
+      stiffness: 150,
+      mass: 0.5,
+    });
+  }, [activeIndex]);
+
+  const animatedIndicatorStyle = useAnimatedStyle(() => {
+    const segmentWidth = containerWidth / modes.length;
+    return {
+      transform: [{ translateX: indicatorPosition.value * segmentWidth }],
+      width: segmentWidth,
+    };
+  });
+
+  const isWeb = Platform.OS === 'web';
+  const showBlur = enableFancyAnimations && !isWeb;
+
   return (
-    <View style={[styles.pill, { backgroundColor: theme.border }]}>
-      {(['raw', 'sync', 'play'] as const).map((mode) => (
+    <View 
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+      style={[
+        styles.pill, 
+        { backgroundColor: theme.border },
+        enableFancyAnimations && { 
+          backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', 
+          borderWidth: 0,
+          overflow: 'hidden' 
+        }
+      ]}
+    >
+      {showBlur && (
+        <BlurView 
+          intensity={colorScheme === 'dark' ? 20 : 30} 
+          tint={colorScheme === 'dark' ? 'dark' : 'light'} 
+          style={StyleSheet.absoluteFill} 
+        />
+      )}
+      
+      {enableFancyAnimations && containerWidth > 0 && (
+        <Animated.View style={[
+          styles.activeIndicator, 
+          { backgroundColor: theme.tint },
+          animatedIndicatorStyle,
+          { 
+            borderRadius: 16,
+            shadowColor: theme.tint,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 5,
+          }
+        ]} />
+      )}
+      {modes.map((mode) => (
         <TouchableOpacity
           key={mode}
+          activeOpacity={0.7}
           style={[
             styles.pillSegment,
-            currentMode === mode && { backgroundColor: theme.tint }
+            !enableFancyAnimations && currentMode === mode && { backgroundColor: theme.tint }
           ]}
           onPress={() => onModeChange(mode)}
         >
           <Text 
             style={[
               styles.pillText, 
-              { color: currentMode === mode ? theme.background : theme.secondaryText }
+              { color: currentMode === mode 
+                ? (enableFancyAnimations ? '#fff' : theme.background) 
+                : theme.secondaryText 
+              },
+              enableFancyAnimations && currentMode === mode && {
+                textShadowColor: 'rgba(0,0,0,0.2)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 2,
+              }
             ]}
           >
             {mode.toUpperCase()}
@@ -219,7 +314,7 @@ const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
 };
 
 export default function EditorScreen() {
-  const { colorScheme, userAgent, pauseOnEnd, rewindAmount, useRemoteSolver, solverUrl, solverKey, powBatchSize } = useAppSettings();
+  const { colorScheme, userAgent, pauseOnEnd, rewindAmount, enableFancyAnimations } = useAppSettings();
   const theme = useTheme();
 
   // Storage Keys for Auto-save
@@ -228,6 +323,7 @@ export default function EditorScreen() {
     TRACK: '@echo_editor_track',
     ARTIST: '@echo_editor_artist',
     ALBUM: '@echo_editor_album',
+    AUTOFILL_HINT: '@echo_editor_dont_show_autofill_hint',
   }), []);
 
   // Audio state
@@ -236,6 +332,25 @@ export default function EditorScreen() {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioFile, setAudioFile] = useState<{ uri: string; name: string } | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [showRateModal, setShowRateModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [manualRate, setManualRate] = useState('1.0');
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Autofill Modal state
+  const [showAutofillModal, setShowAutofillModal] = useState(false);
+  const [dontShowAutofillHint, setDontShowAutofillHint] = useState(false);
+  const [okButtonVisible, setOkButtonVisible] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const okTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Lyrics state
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
@@ -270,16 +385,18 @@ export default function EditorScreen() {
   useEffect(() => {
     const loadProgress = async () => {
       try {
-        const [lrc, track, artist, album] = await Promise.all([
+        const [lrc, track, artist, album, hintSuppressed] = await Promise.all([
           AsyncStorage.getItem(EDITOR_STORAGE_KEYS.RAW_LRC),
           AsyncStorage.getItem(EDITOR_STORAGE_KEYS.TRACK),
           AsyncStorage.getItem(EDITOR_STORAGE_KEYS.ARTIST),
           AsyncStorage.getItem(EDITOR_STORAGE_KEYS.ALBUM),
+          AsyncStorage.getItem(EDITOR_STORAGE_KEYS.AUTOFILL_HINT),
         ]);
         if (lrc) setRawLRC(lrc);
         if (track) setTrackName(track);
         if (artist) setArtistName(artist);
         if (album) setAlbumName(album);
+        if (hintSuppressed === 'true') setDontShowAutofillHint(true);
       } catch (e) {
         console.error('Initial load failed:', e);
       }
@@ -301,9 +418,112 @@ export default function EditorScreen() {
   // Share / Export state
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareStep, setShareStep] = useState<'options' | 'lrclib'>('options');
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [publishStatus, setPublishStatus] = useState('');
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [showWebView, setShowWebView] = useState(false);
+
+  const getLrclibUpUrl = () => {
+    const baseUrl = 'https://lrclibup.boidu.dev/';
+    const params = new URLSearchParams();
+    
+    // Using 'title' as expected by the website
+    if (trackName) params.set('title', trackName);
+    if (artistName) params.set('artist', artistName);
+    if (albumName) params.set('album', albumName);
+    
+    // Attempt to extract duration from [length:mm:ss.xx] if state is 0
+    let effectiveDuration = duration;
+    if (effectiveDuration <= 0) {
+      const lengthMatch = rawLRC.match(/\[length:\s*(\d+):(\d+)\.?(\d*)\]/i);
+      if (lengthMatch) {
+        effectiveDuration = parseInt(lengthMatch[1], 10) * 60 + parseInt(lengthMatch[2], 10);
+      }
+    }
+
+    if (effectiveDuration > 0) {
+      params.set('duration', Math.round(effectiveDuration).toString());
+    }
+    
+    // Website currently doesn't support lyrics via URL params, 
+    // but we'll keep them here for future-proofing and use injectedJavaScript
+    if (isSynced(rawLRC)) {
+      params.set('syncedLyrics', rawLRC);
+    } else {
+      params.set('plainLyrics', rawLRC);
+    }
+    
+    return `${baseUrl}?${params.toString()}`;
+  };
+
+  const getInjectedJS = () => {
+    const isSyncedLyrics = isSynced(rawLRC);
+    const plainLyrics = isSyncedLyrics 
+      ? rawLRC.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim() 
+      : rawLRC;
+    
+    // Re-extract duration for injected JS
+    let effectiveDuration = duration;
+    if (effectiveDuration <= 0) {
+      const lengthMatch = rawLRC.match(/\[length:\s*(\d+):(\d+)\.?(\d*)\]/i);
+      if (lengthMatch) {
+        effectiveDuration = parseInt(lengthMatch[1], 10) * 60 + parseInt(lengthMatch[2], 10);
+      }
+    }
+      
+    const script = `
+      (function() {
+        var attempts = 0;
+        var maxAttempts = 50;
+        var interval = setInterval(function() {
+          attempts++;
+          var track = document.getElementById('trackName');
+          var artist = document.getElementById('artistName');
+          var plain = document.getElementById('plainLyrics');
+          var synced = document.getElementById('syncedLyrics');
+          var dur = document.getElementById('duration');
+
+          if ((track && artist && (plain || synced)) || attempts > maxAttempts) {
+            clearInterval(interval);
+            
+            function fill(el, value) {
+              if (el && value) {
+                try {
+                  var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                  var nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+                  
+                  if (el.tagName === 'TEXTAREA' && nativeTextAreaValueSetter) {
+                    nativeTextAreaValueSetter.call(el, value);
+                  } else if (el.tagName === 'INPUT' && nativeInputValueSetter) {
+                    nativeInputValueSetter.call(el, value);
+                  } else {
+                    el.value = value;
+                  }
+                  
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                  el.dispatchEvent(new Event('change', { bubbles: true }));
+                  // Some Svelte versions respond better to this
+                  el.dispatchEvent(new Event('blur', { bubbles: true }));
+                } catch (e) {}
+              }
+            }
+
+            function doFill() {
+              fill(document.getElementById('trackName'), ${JSON.stringify(trackName)});
+              fill(document.getElementById('artistName'), ${JSON.stringify(artistName)});
+              fill(document.getElementById('albumName'), ${JSON.stringify(albumName)});
+              fill(document.getElementById('duration'), ${JSON.stringify(effectiveDuration > 0 ? Math.round(effectiveDuration).toString() : '')});
+              fill(document.getElementById('plainLyrics'), ${JSON.stringify(plainLyrics)});
+              fill(document.getElementById('syncedLyrics'), ${JSON.stringify(isSyncedLyrics ? rawLRC : '')});
+            }
+
+            doFill();
+            // Second pass after a short delay for Svelte hydration/reactivity
+            setTimeout(doFill, 500);
+          }
+        }, 200);
+      })();
+      true;
+    `;
+    return script;
+  };
 
   const handleExportLRC = async () => {
     if (!rawLRC) {
@@ -376,6 +596,12 @@ export default function EditorScreen() {
       : undefined;
   }, [sound]);
 
+  useEffect(() => {
+    if (sound) {
+      sound.setRateAsync(playbackRate, true);
+    }
+  }, [playbackRate, sound]);
+
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
       setPosition(status.positionMillis / 1000);
@@ -417,6 +643,8 @@ export default function EditorScreen() {
         { uri: asset.uri },
         { 
           shouldPlay: false,
+          rate: playbackRate,
+          shouldCorrectPitch: true,
           progressUpdateIntervalMillis: 100, // Smoother updates for player
         },
         onPlaybackStatusUpdate
@@ -567,9 +795,7 @@ export default function EditorScreen() {
       setPendingText('');
       setEditingLineId(null);
       setShowShareModal(false);
-      setShareStep('options');
-      setIsPublishing(false);
-      setPublishStatus('');
+      setShowWebView(false);
 
       // Persistence reset
       try {
@@ -621,64 +847,171 @@ export default function EditorScreen() {
     triggerHaptic('medium');
   };
 
+  useEffect(() => {
+    return () => {
+      if (okTimerRef.current) clearTimeout(okTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (showSearchModal && !searchQuery) {
+      const initialQuery = artistName && trackName ? `${artistName} ${trackName}` : trackName || artistName || '';
+      setSearchQuery(initialQuery);
+    }
+  }, [showSearchModal]);
+
+  const handleLrclibSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const response = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await response.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (e) {
+      Alert.alert('Search Failed', 'Could not connect to LRCLIB.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleImportLrc = (item: any) => {
+    const performImport = () => {
+      if (item.syncedLyrics) {
+        setRawLRC(item.syncedLyrics);
+      } else if (item.plainLyrics) {
+        setRawLRC(item.plainLyrics);
+      }
+
+      if (item.trackName) setTrackName(item.trackName);
+      if (item.artistName) setArtistName(item.artistName);
+      if (item.albumName) setAlbumName(item.albumName);
+
+      setShowSearchModal(false);
+      setSearchResults([]);
+      setSearchQuery('');
+      triggerHaptic('success');
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Import lyrics for "${item.trackName}"? This will overwrite your current lyrics.`)) {
+        performImport();
+      }
+    } else {
+      Alert.alert(
+        'Import Lyrics',
+        `Import lyrics for "${item.trackName}"? This will overwrite your current lyrics.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Import', 
+            onPress: performImport
+          }
+        ]
+      );
+    }
+  };
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (
+        document.activeElement?.tagName === 'INPUT' || 
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          togglePlayback();
+          break;
+        case 'Enter':
+          e.preventDefault();
+          handleFABPress();
+          break;
+        case 'ArrowRight':
+          if (sound) {
+            e.preventDefault();
+            sound.setPositionAsync((position + 5) * 1000);
+          }
+          break;
+        case 'ArrowLeft':
+          if (sound) {
+            e.preventDefault();
+            sound.setPositionAsync(Math.max(0, position - 5) * 1000);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [sound, position, syncState, isPlaying, pauseOnEnd, rewindAmount]);
+
   const handlePublish = async () => {
     const trimmedTrack = trackName.trim();
     const trimmedArtist = artistName.trim();
-    const trimmedAlbum = albumName.trim();
 
     if (!trimmedTrack || !trimmedArtist) {
       Alert.alert('Metadata Required', 'Please enter at least Track Name and Artist Name.');
       return;
     }
 
-    setIsPublishing(true);
-    setPublishStatus('Initializing...');
-    abortControllerRef.current = new AbortController();
+    setShowShareModal(false);
 
-    try {
-      console.log('Attempting to publish:', { trimmedTrack, trimmedArtist, duration });
-      await publishLyrics(
-        rawLRC,
-        trimmedTrack,
-        trimmedArtist,
-        trimmedAlbum,
-        duration,
-        userAgent,
-        useRemoteSolver,
-        solverUrl,
-        solverKey,
-        (msg) => {
-          console.log('Publish Progress:', msg);
-          setPublishStatus(msg);
-        },
-        abortControllerRef.current.signal,
-        powBatchSize
-      );
-      console.log('Publish successful!');
-      Alert.alert('Success', 'Lyrics published to LRCLIB!');
-      setShowShareModal(false);
-      setPublishStatus('');
-    } catch (error: any) {
-      if (error.message === 'Publish aborted' || error.message === 'Solver aborted') {
-        console.log('Publishing was cancelled by user.');
-      } else {
-        console.error('Final Catch in handlePublish:', error);
-        Alert.alert('Publish Error', error.message || 'An unknown error occurred.');
-        setPublishStatus(`Error: ${error.message}`);
-      }
-    } finally {
-      setIsPublishing(false);
-      abortControllerRef.current = null;
+    if (dontShowAutofillHint) {
+      setShowWebView(true);
+    } else {
+      setShowAutofillModal(true);
+      setOkButtonVisible(false);
+      setCountdown(5);
+      
+      if (okTimerRef.current) clearTimeout(okTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      okTimerRef.current = setTimeout(() => {
+        setOkButtonVisible(true);
+      }, 5000);
     }
   };
 
-  const handleCancelPublish = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+  const handleAutofillOk = async () => {
+    if (dontShowAutofillHint) {
+      try {
+        await AsyncStorage.setItem(EDITOR_STORAGE_KEYS.AUTOFILL_HINT, 'true');
+      } catch (e) {
+        console.error('Failed to save autofill hint preference:', e);
+      }
     }
-    setShowShareModal(false);
-    setIsPublishing(false);
-    setPublishStatus('');
+    setShowAutofillModal(false);
+    setShowWebView(true);
+  };
+
+  const handleCopyToClipboard = (content: string, type: 'lyrics' | 'duration') => {
+    import('expo-clipboard').then(Clipboard => {
+      Clipboard.setStringAsync(content);
+      triggerHaptic('success');
+      
+      setCopyFeedback(type === 'lyrics' ? 'Lyrics copied!' : 'Duration copied!');
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = setTimeout(() => {
+        setCopyFeedback(null);
+      }, 2000);
+    });
   };
 
 
@@ -722,6 +1055,11 @@ export default function EditorScreen() {
         </View>
 
         <View style={styles.playbackButtons}>
+          <TouchableOpacity onPress={() => setShowRateModal(true)} style={styles.controlButton}>
+            <Gauge color={theme.tint} size={24} />
+            <Text style={[styles.controlButtonText, { color: theme.tint }]}>{playbackRate.toFixed(2)}x</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity onPress={togglePlayback} disabled={!sound}>
             {isPlaying ? (
               <Pause color={theme.tint} size={32} />
@@ -731,6 +1069,10 @@ export default function EditorScreen() {
           </TouchableOpacity>
           <TouchableOpacity onPress={stopPlayback} disabled={!sound}>
             <Square color={theme.tint} size={32} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setShowSearchModal(true)} style={styles.controlButton}>
+            <Search color={theme.tint} size={24} />
           </TouchableOpacity>
         </View>
       </View>
@@ -854,7 +1196,14 @@ export default function EditorScreen() {
       {/* Text Input Modal for FAB Sync & Editing */}
       <Modal visible={showTextInput} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background, borderColor: theme.border, borderWidth: 1 }]}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: theme.background, borderColor: theme.border, borderWidth: 1 },
+            enableFancyAnimations && { backgroundColor: theme.background + 'CC' }
+          ]}>
             <Text style={styles.modalTitle}>
               {editingLineId ? 'Edit Lyric' : 'Enter Lyric Text'}
             </Text>
@@ -891,7 +1240,14 @@ export default function EditorScreen() {
       {/* Share / Export Modal */}
       <Modal visible={showShareModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background, borderColor: theme.border, borderWidth: 1 }]}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: theme.background, borderColor: theme.border, borderWidth: 1 },
+            enableFancyAnimations && { backgroundColor: theme.background + 'CC' }
+          ]}>
             {shareStep === 'options' ? (
               <>
                 <Text style={styles.modalTitle}>Share & Export</Text>
@@ -961,33 +1317,283 @@ export default function EditorScreen() {
                   onChangeText={setAlbumName}
                 />
                 
-                {isPublishing && (
-                  <View style={[styles.statusLog, { backgroundColor: theme.border }]}>
-                    <Text style={[styles.statusText, { color: theme.text }]}>
-                      {publishStatus}
-                    </Text>
-                  </View>
-                )}
-                
                 <View style={styles.modalActions}>
                   <TouchableOpacity
                     style={[styles.modalButton, { backgroundColor: theme.border, marginRight: 10 }]}
-                    onPress={handleCancelPublish}
+                    onPress={() => setShowShareModal(false)}
                   >
                     <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalButton, { backgroundColor: theme.tint, flex: 1 }]}
                     onPress={handlePublish}
-                    disabled={isPublishing}
                   >
                     <Text style={[styles.modalButtonText, { color: theme.background }]}>
-                      {isPublishing ? 'Publishing...' : 'Publish'}
+                       Upload via LRCLIB UP
                     </Text>
                   </TouchableOpacity>
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Autofill Hint Modal */}
+      <Modal visible={showAutofillModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: theme.background, maxWidth: 400 },
+            enableFancyAnimations && { backgroundColor: theme.background + 'CC' }
+          ]}>
+            <Text style={styles.modalTitle}>Autofill Note</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.secondaryText, marginBottom: 20 }]}>
+              Note: Duration and lyrics don't autofill. Press to copy lyrics and duration.
+            </Text>
+
+            <View style={{ gap: 10, marginBottom: 20 }}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.tint, flexDirection: 'row', gap: 8 }]}
+                onPress={() => handleCopyToClipboard(rawLRC, 'lyrics')}
+              >
+                <Copy color={theme.background} size={18} />
+                <Text style={[styles.modalButtonText, { color: theme.background }]}>Copy Lyrics</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.tint, flexDirection: 'row', gap: 8 }]}
+                onPress={() => {
+                  let effectiveDuration = duration;
+                  if (effectiveDuration <= 0) {
+                    const lengthMatch = rawLRC.match(/\[length:\s*(\d+):(\d+)\.?(\d*)\]/i);
+                    if (lengthMatch) {
+                      effectiveDuration = parseInt(lengthMatch[1], 10) * 60 + parseInt(lengthMatch[2], 10);
+                    }
+                  }
+                  handleCopyToClipboard(Math.round(effectiveDuration).toString(), 'duration');
+                }}
+              >
+                <Copy color={theme.background} size={18} />
+                <Text style={[styles.modalButtonText, { color: theme.background }]}>Copy Duration</Text>
+              </TouchableOpacity>
+            </View>
+
+            {copyFeedback && (
+              <View style={{ backgroundColor: theme.tint + '20', padding: 8, borderRadius: 8, marginBottom: 15, alignItems: 'center' }}>
+                <Text style={{ color: theme.tint, fontWeight: 'bold', fontSize: 12 }}>{copyFeedback}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 }}
+              onPress={() => setDontShowAutofillHint(!dontShowAutofillHint)}
+            >
+              {dontShowAutofillHint ? (
+                <CheckSquare color={theme.tint} size={20} />
+              ) : (
+                <Square color={theme.tint} size={20} />
+              )}
+              <Text style={{ color: theme.text }}>Don't show again</Text>
+            </TouchableOpacity>
+
+            <View style={styles.modalActions}>
+              {okButtonVisible ? (
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.tint, flex: 1 }]}
+                  onPress={handleAutofillOk}
+                >
+                  <Text style={[styles.modalButtonText, { color: theme.background }]}>OK</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.modalButton, { backgroundColor: theme.border, flex: 1, opacity: 0.5 }]}>
+                  <Text style={[styles.modalButtonText, { color: theme.secondaryText }]}>OK ({countdown}s)</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Playback Rate Modal */}
+      <Modal visible={showRateModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: theme.background, maxWidth: 400 },
+            enableFancyAnimations && { backgroundColor: theme.background + 'CC' }
+          ]}>
+            <Text style={styles.modalTitle}>Playback Speed</Text>
+            
+            <View style={styles.rateGrid}>
+              {[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((rate) => (
+                <TouchableOpacity
+                  key={rate}
+                  style={[
+                    styles.rateOption,
+                    { borderColor: theme.border },
+                    playbackRate === rate && { backgroundColor: theme.tint, borderColor: theme.tint }
+                  ]}
+                  onPress={() => {
+                    setPlaybackRate(rate);
+                    setManualRate(rate.toString());
+                    setShowRateModal(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.rateText,
+                    { color: theme.text },
+                    playbackRate === rate && { color: theme.background }
+                  ]}>{rate.toFixed(2)}x</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ marginTop: 10 }}>
+              <Text style={[styles.label, { color: theme.secondaryText }]}>Manual Speed:</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput
+                  style={[styles.textInput, { flex: 1, color: theme.text, borderColor: theme.border }]}
+                  value={manualRate}
+                  onChangeText={setManualRate}
+                  keyboardType="numeric"
+                  placeholder="e.g. 1.1"
+                />
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.tint, paddingHorizontal: 20 }]}
+                  onPress={() => {
+                    const r = parseFloat(manualRate);
+                    if (!isNaN(r) && r > 0 && r <= 4) {
+                      setPlaybackRate(r);
+                      setShowRateModal(false);
+                    } else {
+                      Alert.alert('Invalid Speed', 'Please enter a value between 0.1 and 4.0');
+                    }
+                  }}
+                >
+                  <Text style={{ color: theme.background, fontWeight: 'bold' }}>Set</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.border, marginTop: 10 }]}
+              onPress={() => setShowRateModal(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.text }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* LRCLIB Search Modal */}
+      <Modal visible={showSearchModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: theme.background, height: '80%' },
+            enableFancyAnimations && { backgroundColor: theme.background + 'CC' }
+          ]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Import from LRCLIB</Text>
+              <TouchableOpacity onPress={() => setShowSearchModal(false)}>
+                <X color={theme.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TextInput
+                style={[styles.textInput, { flex: 1, color: theme.text, borderColor: theme.border }]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search track or artist..."
+                placeholderTextColor={theme.secondaryText}
+                onSubmitEditing={handleLrclibSearch}
+              />
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.tint, paddingHorizontal: 20 }]}
+                onPress={handleLrclibSearch}
+                disabled={isSearching}
+              >
+                {isSearching ? (
+                  <ActivityIndicator color={theme.background} />
+                ) : (
+                  <Search color={theme.background} size={20} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.id.toString()}
+              style={{ marginTop: 10 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.searchResultItem, { borderBottomColor: theme.border }]}
+                  onPress={() => handleImportLrc(item)}
+                >
+                  <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+                    <Text style={[styles.resultTrack, { color: theme.text }]}>{item.trackName}</Text>
+                    <Text style={[styles.resultArtist, { color: theme.secondaryText }]}>
+                      {item.artistName} {item.albumName ? `• ${item.albumName}` : ''}
+                    </Text>
+                  </View>
+                  {item.syncedLyrics ? (
+                    <View style={[styles.badge, { backgroundColor: theme.tint + '20' }]}>
+                      <Text style={{ color: theme.tint, fontSize: 10, fontWeight: 'bold' }}>SYNCED</Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.badge, { backgroundColor: theme.border }]}>
+                      <Text style={{ color: theme.secondaryText, fontSize: 10, fontWeight: 'bold' }}>PLAIN</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                !isSearching && searchQuery ? (
+                  <Text style={{ textAlign: 'center', marginTop: 40, color: theme.secondaryText }}>
+                    No results found.
+                  </Text>
+                ) : null
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* WebView Modal */}
+      <Modal visible={showWebView} transparent animationType="slide">
+        <View style={styles.webViewOverlay}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.webViewHeader, 
+            { backgroundColor: theme.background, borderBottomColor: theme.border },
+            enableFancyAnimations && { backgroundColor: theme.background + 'CC' }
+          ]}>
+            <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Upload to LRCLIB</Text>
+            <TouchableOpacity onPress={() => setShowWebView(false)} style={styles.closeButton}>
+              <Text style={{ color: theme.tint, fontWeight: 'bold' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flex: 1, backgroundColor: '#fff' }}>
+            <AppWebView 
+              source={{ uri: getLrclibUpUrl() }} 
+              injectedJavaScript={getInjectedJS()}
+              onMessage={(event) => {
+                // Handle messages from WebView if needed
+              }}
+            />
           </View>
         </View>
       </Modal>
@@ -1060,6 +1666,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 16,
+    zIndex: 1,
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
     borderRadius: 16,
   },
   pillText: {
@@ -1191,6 +1804,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  modalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1234,13 +1852,66 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: 'transparent',
   },
-  statusLog: {
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
+  webViewOverlay: {
+    flex: 1,
+    backgroundColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 50 : 0,
   },
-  statusText: {
+  webViewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  controlButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
+  },
+  controlButtonText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  rateGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  rateOption: {
+    width: '22%',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  rateText: {
     fontSize: 12,
-    fontFamily: 'SpaceMono',
+    fontWeight: 'bold',
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  resultTrack: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  resultArtist: {
+    fontSize: 13,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
 });

@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme as useNativeColorScheme } from 'react-native';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ACCENT_COLORS, AccentKey, CustomTheme } from '@/constants/Theme';
+import { AccentKey, CustomTheme } from '@/constants/Theme';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -19,14 +18,8 @@ interface AppSettingsContextType {
   setPauseOnEnd: (value: boolean) => void;
   rewindAmount: number;
   setRewindAmount: (value: number) => void;
-  solverUrl: string;
-  setSolverUrl: (url: string) => void;
-  solverKey: string;
-  setSolverKey: (key: string) => void;
-  useRemoteSolver: boolean;
-  setUseRemoteSolver: (value: boolean) => void;
-  powBatchSize: number;
-  setPowBatchSize: (value: number) => void;
+  enableFancyAnimations: boolean;
+  setEnableFancyAnimations: (value: boolean) => void;
   colorScheme: 'light' | 'dark';
   isInitialized: boolean;
 }
@@ -37,17 +30,11 @@ const STORAGE_KEYS = {
   USER_AGENT: '@echo_settings_user_agent',
   PAUSE_ON_END: '@echo_settings_pause_on_end',
   REWIND_AMOUNT: '@echo_settings_rewind_amount',
-  SOLVER_URL: '@echo_settings_solver_url',
-  SOLVER_KEY: '@echo_settings_solver_key',
-  USE_REMOTE_SOLVER: '@echo_settings_use_remote_solver',
   CUSTOM_THEME: '@echo_settings_custom_theme',
-  POW_BATCH_SIZE: '@echo_settings_pow_batch_size',
+  FANCY_ANIMATIONS: '@echo_settings_fancy_animations',
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
-
-const DEFAULT_SOLVER_URL = String(process.env.EXPO_PUBLIC_SOLVER_URL || '');
-const DEFAULT_SOLVER_KEY = String(process.env.EXPO_PUBLIC_SOLVER_KEY || '');
 
 export function AppSettingsProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useNativeColorScheme() ?? 'light';
@@ -64,10 +51,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [userAgent, setUserAgentState] = useState('Echo Lyric Editor (https://github.com/sudoloser/echo)');
   const [pauseOnEnd, setPauseOnEndState] = useState(true);
   const [rewindAmount, setRewindAmountState] = useState(1.5);
-  const [solverUrl, setSolverUrlState] = useState(DEFAULT_SOLVER_URL);
-  const [solverKey, setSolverKeyState] = useState(DEFAULT_SOLVER_KEY);
-  const [useRemoteSolver, setUseRemoteSolverState] = useState(true);
-  const [powBatchSize, setPowBatchSizeState] = useState(Platform.OS === 'web' ? 1000 : 50);
+  const [enableFancyAnimations, setEnableFancyAnimationsState] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -78,39 +62,27 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           savedUA, 
           savedPause, 
           savedRewind, 
-          savedSolver, 
-          savedKey,
-          savedUseRemote,
           savedCustomTheme,
-          savedPowBatchSize
+          savedFancy
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
           AsyncStorage.getItem(STORAGE_KEYS.USER_AGENT),
           AsyncStorage.getItem(STORAGE_KEYS.PAUSE_ON_END),
           AsyncStorage.getItem(STORAGE_KEYS.REWIND_AMOUNT),
-          AsyncStorage.getItem(STORAGE_KEYS.SOLVER_URL),
-          AsyncStorage.getItem(STORAGE_KEYS.SOLVER_KEY),
-          AsyncStorage.getItem(STORAGE_KEYS.USE_REMOTE_SOLVER),
           AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_THEME),
-          AsyncStorage.getItem(STORAGE_KEYS.POW_BATCH_SIZE),
+          AsyncStorage.getItem(STORAGE_KEYS.FANCY_ANIMATIONS),
         ]);
 
         if (savedTheme) setThemeState(savedTheme as Theme);
         if (savedAccent) setAccentKeyState(savedAccent as AccentKey);
         if (savedUA) setUserAgentState(savedUA);
         if (savedPause) setPauseOnEndState(savedPause === 'true');
-        if (savedSolver) setSolverUrlState(savedSolver);
-        if (savedKey) setSolverKeyState(savedKey);
-        if (savedUseRemote) setUseRemoteSolverState(savedUseRemote === 'true');
         if (savedCustomTheme) setCustomThemeState(JSON.parse(savedCustomTheme));
+        if (savedFancy) setEnableFancyAnimationsState(savedFancy === 'true');
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
-        }
-        if (savedPowBatchSize) {
-          const val = parseInt(savedPowBatchSize, 10);
-          if (!isNaN(val)) setPowBatchSizeState(val);
         }
       } catch (e) {
         console.error('Failed to load settings:', e);
@@ -152,24 +124,9 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.REWIND_AMOUNT, value.toString());
   };
 
-  const setSolverUrl = async (value: string) => {
-    setSolverUrlState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.SOLVER_URL, value);
-  };
-
-  const setSolverKey = async (value: string) => {
-    setSolverKeyState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.SOLVER_KEY, value);
-  };
-
-  const setUseRemoteSolver = async (value: boolean) => {
-    setUseRemoteSolverState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.USE_REMOTE_SOLVER, value.toString());
-  };
-
-  const setPowBatchSize = async (value: number) => {
-    setPowBatchSizeState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.POW_BATCH_SIZE, value.toString());
+  const setEnableFancyAnimations = async (value: boolean) => {
+    setEnableFancyAnimationsState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.FANCY_ANIMATIONS, value.toString());
   };
 
   const colorScheme = theme === 'system' ? systemColorScheme : theme;
@@ -189,14 +146,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setPauseOnEnd, 
         rewindAmount,
         setRewindAmount,
-        solverUrl,
-        setSolverUrl,
-        solverKey,
-        setSolverKey,
-        useRemoteSolver,
-        setUseRemoteSolver,
-        powBatchSize,
-        setPowBatchSize,
+        enableFancyAnimations,
+        setEnableFancyAnimations,
         colorScheme,
         isInitialized
       }}

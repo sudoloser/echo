@@ -29,8 +29,7 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "EXPO_PUBLIC_SOLVER_URL=${{ secrets.SOLVER_URL }}" > .env
-          echo "EXPO_PUBLIC_SOLVER_KEY=${{ secrets.SOLVER_KEY }}" >> .env
+          echo "EXPO_PUBLIC_BUILD_TIME=$(date +%s)" > .env
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -45,7 +44,7 @@ jobs:
         run: npx expo prebuild --platform android
 
       - name: Decode Keystore
-        run: echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/release.keystore
+        run: printf "%s" "${{ secrets.KEYSTORE }}" | tr -d '\n ' | base64 --decode --ignore-garbage > android/release.keystore
 
       - name: Build Release APK
         run: |

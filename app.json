@@ -32,7 +32,15 @@
       "bundler": "metro",
       "output": "static",
       "baseUrl": "/echo",
-      "favicon": "./assets/images/echo.png"
+      "favicon": "./assets/images/echo.png",
+      "pwa": {
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#000000",
+        "description": "A minimalist, open-source lyric editor for creating, syncing, and publishing time-tagged lyrics to LRCLIB.",
+        "name": "Echo - Minimalist Lyric Editor",
+        "shortName": "Echo"
+      }
     },
 
     "plugins": [
