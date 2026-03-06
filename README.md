@@ -10,7 +10,28 @@ Echo is a minimalist, open-source lyric editor built with Expo and TypeScript. I
     -   **Sync Mode**: Use the specialized "Echo Sync" FAB to capture precise start and end times for each line.
 -   **LRCLIB Integration**: Publish your synced lyrics directly to LRCLIB with built-in Proof-of-Work (PoW) challenge solving.
 -   **Minimalist Design**: Sleek Slate-based UI with full support for Light and Dark modes.
--   **Customizable**: Configure your User-Agent to comply with LRCLIB's API guidelines.
+- **Customizable**: Configure your User-Agent to comply with LRCLIB's API guidelines.
+- **Remote Solver Support**: Speed up the publishing process by using an optional Node.js server to solve Proof-of-Work challenges.
+
+## Remote Solver Setup (Optional)
+
+To speed up the PoW challenge solving (which can be slow on mobile JS), you can deploy the included solver server.
+
+### 1. Deploy the Server
+1. The solver code is located in the `server/` directory.
+2. Deploy it to a service like [Render](https://render.com/) or [Vercel](https://vercel.com/).
+3. Set an environment variable on your hosting provider: `SOLVER_KEY=your_secret_key_here`.
+
+### 2. Configure the App
+#### For Development/Personal Use:
+Go to the **Settings** tab in the app and enter:
+- **Solver URL**: Your deployed server URL (e.g., `https://my-solver.onrender.com`).
+- **Solver Key**: The same secret key you set in step 1.
+
+#### For Forks/Production Builds:
+Set these Repository Secrets in GitHub to inject them into your builds:
+- `EXPO_PUBLIC_SOLVER_URL`: Your solver's URL.
+- `EXPO_PUBLIC_SOLVER_KEY`: Your secret key.
 
 ## Getting Started
 

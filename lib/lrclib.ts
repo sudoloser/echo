@@ -66,7 +66,7 @@ async function solveChallenge(
   const lowerTarget = target.toLowerCase();
   
   while (true) {
-    // Perform 5000 hashes per batch to improve speed (expo-crypto is native)
+    // Perform 5000 hashes per batch to improve speed
     for (let i = 0; i < 5000; i++) {
       const hash = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
@@ -96,6 +96,8 @@ export async function publishLyrics(
   duration: number,
   lrcText: string,
   userAgent: string,
+  solverUrl?: string,
+  solverKey?: string,
   onProgress?: (msg: string) => void
 ) {
   const baseUrl = 'https://lrclib.net/api';
@@ -113,8 +115,33 @@ export async function publishLyrics(
 
     const challenge: ChallengeResponse = await challengeRes.json();
     
-    onProgress?.('Solving Proof-of-Work challenge...');
-    const nonce = await solveChallenge(challenge.prefix, challenge.target, onProgress);
+    let nonce: string;
+    if (solverUrl) {
+      onProgress?.('Sending challenge to remote solver...');
+      const solverRes = await fetch(`${solverUrl}/solve`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-solver-key': solverKey || ''
+        },
+        body: JSON.stringify({
+          prefix: challenge.prefix,
+          target: challenge.target
+        })
+      });
+
+      if (!solverRes.ok) {
+        const errorData = await solverRes.json();
+        throw new Error(errorData.error || `Solver failed: ${solverRes.statusText}`);
+      }
+
+      const solverData = await solverRes.json();
+      nonce = solverData.nonce;
+      onProgress?.(`Remote solver finished in ${solverData.elapsed}s.`);
+    } else {
+      onProgress?.('Solving Proof-of-Work challenge (Local)...');
+      nonce = await solveChallenge(challenge.prefix, challenge.target, onProgress);
+    }
 
     onProgress?.('Publishing lyrics to database...');
     const durationSec = Math.round(duration);

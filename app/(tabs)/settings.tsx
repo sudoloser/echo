@@ -18,6 +18,10 @@ export default function SettingsScreen() {
     setPauseOnEnd, 
     rewindAmount,
     setRewindAmount,
+    solverUrl,
+    setSolverUrl,
+    solverKey,
+    setSolverKey,
     colorScheme 
   } = useAppSettings();
   const themeColors = useTheme();
@@ -117,6 +121,53 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>LRCLIB Configuration</Text>
+        
+        {(!process.env.EXPO_PUBLIC_SOLVER_URL || !process.env.EXPO_PUBLIC_SOLVER_KEY) && (
+          <>
+            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver URL (Optional)</Text>
+            <TextInput
+              style={[
+                styles.input, 
+                { 
+                  color: themeColors.text, 
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.background,
+                  marginBottom: 10
+                }
+              ]}
+              value={solverUrl}
+              onChangeText={setSolverUrl}
+              placeholder="https://your-solver.render.com"
+              placeholderTextColor={themeColors.secondaryText}
+            />
+            <Text style={[styles.hint, { color: themeColors.secondaryText, marginBottom: 20 }]}>
+              Speed up publishing by using a dedicated server to solve PoW challenges. 
+              Leave empty to solve on device (slower).
+            </Text>
+
+            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver Key</Text>
+            <TextInput
+              style={[
+                styles.input, 
+                { 
+                  color: themeColors.text, 
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.background,
+                  marginBottom: 10
+                }
+              ]}
+              value={solverKey}
+              onChangeText={setSolverKey}
+              placeholder="Enter your solver security key"
+              placeholderTextColor={themeColors.secondaryText}
+              secureTextEntry
+            />
+            <Text style={[styles.hint, { color: themeColors.secondaryText, marginBottom: 20 }]}>
+              Required if your remote solver is protected by a key.
+            </Text>
+          </>
+        )}
+
         <Text style={[styles.label, { color: themeColors.secondaryText }]}>User-Agent</Text>
         <TextInput
           style={[

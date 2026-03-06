@@ -26,6 +26,10 @@ interface AppSettingsContextType {
   setPauseOnEnd: (value: boolean) => void;
   rewindAmount: number;
   setRewindAmount: (value: number) => void;
+  solverUrl: string;
+  setSolverUrl: (url: string) => void;
+  solverKey: string;
+  setSolverKey: (key: string) => void;
   colorScheme: 'light' | 'dark';
   isInitialized: boolean;
 }
@@ -36,9 +40,16 @@ const STORAGE_KEYS = {
   USER_AGENT: '@echo_settings_user_agent',
   PAUSE_ON_END: '@echo_settings_pause_on_end',
   REWIND_AMOUNT: '@echo_settings_rewind_amount',
+  SOLVER_URL: '@echo_settings_solver_url',
+  SOLVER_KEY: '@echo_settings_solver_key',
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
+
+// Default values that can be "injected" at build time via environment variables
+// Use process.env for web/build-time injection
+const DEFAULT_SOLVER_URL = process.env.EXPO_PUBLIC_SOLVER_URL || '';
+const DEFAULT_SOLVER_KEY = process.env.EXPO_PUBLIC_SOLVER_KEY || '';
 
 export function AppSettingsProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useNativeColorScheme() ?? 'light';
@@ -49,23 +60,29 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [userAgent, setUserAgentState] = useState('Echo Lyric Editor (https://github.com/sudoloser/echo)');
   const [pauseOnEnd, setPauseOnEndState] = useState(true);
   const [rewindAmount, setRewindAmountState] = useState(1.5);
+  const [solverUrl, setSolverUrlState] = useState(DEFAULT_SOLVER_URL);
+  const [solverKey, setSolverKeyState] = useState(DEFAULT_SOLVER_KEY);
 
   // Load settings on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [savedTheme, savedAccent, savedUA, savedPause, savedRewind] = await Promise.all([
+        const [savedTheme, savedAccent, savedUA, savedPause, savedRewind, savedSolver, savedKey] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
           AsyncStorage.getItem(STORAGE_KEYS.USER_AGENT),
           AsyncStorage.getItem(STORAGE_KEYS.PAUSE_ON_END),
           AsyncStorage.getItem(STORAGE_KEYS.REWIND_AMOUNT),
+          AsyncStorage.getItem(STORAGE_KEYS.SOLVER_URL),
+          AsyncStorage.getItem(STORAGE_KEYS.SOLVER_KEY),
         ]);
 
         if (savedTheme) setThemeState(savedTheme as Theme);
         if (savedAccent) setAccentKeyState(savedAccent as AccentKey);
         if (savedUA) setUserAgentState(savedUA);
         if (savedPause) setPauseOnEndState(savedPause === 'true');
+        if (savedSolver) setSolverUrlState(savedSolver);
+        if (savedKey) setSolverKeyState(savedKey);
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
@@ -106,6 +123,16 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.REWIND_AMOUNT, value.toString());
   };
 
+  const setSolverUrl = async (value: string) => {
+    setSolverUrlState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.SOLVER_URL, value);
+  };
+
+  const setSolverKey = async (value: string) => {
+    setSolverKeyState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.SOLVER_KEY, value);
+  };
+
   const colorScheme = theme === 'system' ? systemColorScheme : theme;
 
   return (
@@ -121,6 +148,10 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setPauseOnEnd, 
         rewindAmount,
         setRewindAmount,
+        solverUrl,
+        setSolverUrl,
+        solverKey,
+        setSolverKey,
         colorScheme,
         isInitialized
       }}

@@ -41,7 +41,7 @@ import {
 } from '@/lib/lrclib';
 
 export default function EditorScreen() {
-  const { colorScheme, userAgent, pauseOnEnd, rewindAmount } = useAppSettings();
+  const { colorScheme, userAgent, pauseOnEnd, rewindAmount, solverUrl, solverKey } = useAppSettings();
   const theme = useTheme();
 
   // Audio state
@@ -290,6 +290,8 @@ export default function EditorScreen() {
         duration,
         rawLRC,
         userAgent,
+        solverUrl,
+        solverKey,
         (msg) => setPublishStatus(msg)
       );
       Alert.alert('Success', 'Lyrics published to LRCLIB!');
