@@ -17,6 +17,10 @@ app.get('/', (req, res) => {
   res.send('Echo LRCLIB Solver Server is running.');
 });
 
+app.get('/solve', (req, res) => {
+  res.status(405).send('The /solve endpoint only accepts POST requests with prefix and target in the body.');
+});
+
 app.get('/health', (req, res) => res.send('OK'));
 
 /**

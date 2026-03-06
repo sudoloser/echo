@@ -1,4 +1,6 @@
 import * as Crypto from 'expo-crypto';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 export interface LyricLine {
   id: string;
@@ -51,6 +53,36 @@ export function parseLRCToLyrics(lrc: string): LyricLine[] {
   return lyrics;
 }
 
+const NOTIFICATION_ID = 'echo-publish-progress';
+
+async function showProgressNotification(title: string, body: string, isDone: boolean = false) {
+  if (Platform.OS === 'web') return;
+  
+  await Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: isDone,
+      shouldSetBadge: false,
+    }),
+  });
+
+  // Basic request for permissions if not already granted
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') {
+    await Notifications.requestPermissionsAsync();
+  }
+
+  await Notifications.presentNotificationAsync({
+    identifier: NOTIFICATION_ID,
+    content: {
+      title,
+      body,
+      sticky: !isDone,
+      priority: Notifications.AndroidNotificationPriority.LOW,
+    },
+  });
+}
+
 interface ChallengeResponse {
   prefix: string;
   target: string;
@@ -76,13 +108,20 @@ async function solveChallenge(
       if (hash < lowerTarget) {
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`Solved at nonce ${nonce} in ${totalTime}s`);
+        await showProgressNotification('Echo Solver', `Solved at nonce ${nonce}!`, true);
         return nonce.toString();
       }
       nonce++;
     }
     
     const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
-    onProgress?.(`Solving PoW: nonce ${nonce} (${elapsedSecs}s elapsed)...`);
+    const msg = `Solving PoW: nonce ${nonce} (${elapsedSecs}s elapsed)...`;
+    onProgress?.(msg);
+    
+    // Update notification every 50k nonces
+    if (nonce % 50000 === 0) {
+      await showProgressNotification('Echo Solver (Local)', msg);
+    }
     
     // Minimal delay to keep UI responsive
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -112,7 +151,9 @@ async function fetchRemoteSolver(
       const lines = newText.split('\n');
       for (const line of lines) {
         if (line.startsWith('PROGRESS:')) {
-          onProgress?.(line.replace('PROGRESS:', '').trim());
+          const msg = line.replace('PROGRESS:', '').trim();
+          onProgress?.(msg);
+          showProgressNotification('Echo Solver (Remote)', msg);
         } else if (line.startsWith('ERROR:')) {
           reject(new Error(line.replace('ERROR:', '').trim()));
         }
@@ -161,6 +202,7 @@ export async function publishLyrics(
   duration: number,
   lrcText: string,
   userAgent: string,
+  useRemoteSolver?: boolean,
   solverUrl?: string,
   solverKey?: string,
   onProgress?: (msg: string) => void
@@ -169,6 +211,8 @@ export async function publishLyrics(
 
   try {
     onProgress?.('Requesting challenge from LRCLIB...');
+    await showProgressNotification('Echo Publisher', 'Requesting challenge from LRCLIB...');
+
     const challengeRes = await fetch(`${baseUrl}/request-challenge`, {
       method: 'POST',
       headers: { 'User-Agent': userAgent },
@@ -181,8 +225,9 @@ export async function publishLyrics(
     const challenge: ChallengeResponse = await challengeRes.json();
     
     let nonce: string;
-    if (solverUrl) {
+    if (useRemoteSolver && solverUrl) {
       onProgress?.('Sending challenge to remote solver...');
+      await showProgressNotification('Echo Publisher', 'Waiting for remote solver...');
       const solverData = await fetchRemoteSolver(
         solverUrl,
         solverKey || '',
@@ -192,12 +237,15 @@ export async function publishLyrics(
       );
       nonce = solverData.nonce;
       onProgress?.(`Remote solver finished in ${solverData.elapsed}s.`);
+      await showProgressNotification('Echo Solver (Remote)', `Solved in ${solverData.elapsed}s!`, true);
     } else {
       onProgress?.('Solving Proof-of-Work challenge (Local)...');
       nonce = await solveChallenge(challenge.prefix, challenge.target, onProgress);
     }
 
     onProgress?.('Publishing lyrics to database...');
+    await showProgressNotification('Echo Publisher', 'Finalizing upload to LRCLIB...');
+
     const durationSec = Math.round(duration);
     const publishRes = await fetch(`${baseUrl}/publish`, {
       method: 'POST',
@@ -217,12 +265,16 @@ export async function publishLyrics(
 
     if (!publishRes.ok) {
       const errorData = await publishRes.json();
+      await showProgressNotification('Echo Publisher', 'Failed to publish lyrics.', true);
       throw new Error(errorData.message || `Publish failed: ${publishRes.statusText}`);
     }
 
-    return await publishRes.json();
+    const data = await publishRes.json();
+    await showProgressNotification('Echo Publisher', 'Successfully published to LRCLIB!', true);
+    return data;
   } catch (error: any) {
     console.error('LRCLIB Publish Error:', error);
+    await showProgressNotification('Echo Publisher', `Error: ${error.message}`, true);
     throw error;
   }
 }

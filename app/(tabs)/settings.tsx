@@ -22,6 +22,8 @@ export default function SettingsScreen() {
     setSolverUrl,
     solverKey,
     setSolverKey,
+    useRemoteSolver,
+    setUseRemoteSolver,
     colorScheme 
   } = useAppSettings();
   const themeColors = useTheme();
@@ -122,9 +124,24 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>LRCLIB Configuration</Text>
         
-        {(!process.env.EXPO_PUBLIC_SOLVER_URL || !process.env.EXPO_PUBLIC_SOLVER_KEY) && (
+        <View style={[styles.settingRow, { marginBottom: 20 }]}>
+          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+            <Text style={styles.settingLabel}>Use Remote Solver</Text>
+            <Text style={[styles.hint, { color: themeColors.secondaryText, marginTop: 4 }]}>
+              Offload PoW solving to a dedicated server (much faster than mobile).
+            </Text>
+          </View>
+          <Switch
+            value={useRemoteSolver}
+            onValueChange={setUseRemoteSolver}
+            trackColor={{ false: themeColors.border, true: themeColors.tint }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        {useRemoteSolver && (
           <>
-            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver URL (Optional)</Text>
+            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver URL</Text>
             <TextInput
               style={[
                 styles.input, 
@@ -140,12 +157,8 @@ export default function SettingsScreen() {
               placeholder="https://your-solver.render.com"
               placeholderTextColor={themeColors.secondaryText}
             />
-            <Text style={[styles.hint, { color: themeColors.secondaryText, marginBottom: 20 }]}>
-              Speed up publishing by using a dedicated server to solve PoW challenges. 
-              Leave empty to solve on device (slower).
-            </Text>
-
-            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver Key</Text>
+            
+            <Text style={[styles.label, { color: themeColors.secondaryText }]}>Solver Key (Optional)</Text>
             <TextInput
               style={[
                 styles.input, 
@@ -162,13 +175,10 @@ export default function SettingsScreen() {
               placeholderTextColor={themeColors.secondaryText}
               secureTextEntry
             />
-            <Text style={[styles.hint, { color: themeColors.secondaryText, marginBottom: 20 }]}>
-              Required if your remote solver is protected by a key.
-            </Text>
           </>
         )}
 
-        <Text style={[styles.label, { color: themeColors.secondaryText }]}>User-Agent</Text>
+        <Text style={[styles.label, { color: themeColors.secondaryText, marginTop: 10 }]}>User-Agent</Text>
         <TextInput
           style={[
             styles.input, 

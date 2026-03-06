@@ -30,6 +30,8 @@ interface AppSettingsContextType {
   setSolverUrl: (url: string) => void;
   solverKey: string;
   setSolverKey: (key: string) => void;
+  useRemoteSolver: boolean;
+  setUseRemoteSolver: (value: boolean) => void;
   colorScheme: 'light' | 'dark';
   isInitialized: boolean;
 }
@@ -42,6 +44,7 @@ const STORAGE_KEYS = {
   REWIND_AMOUNT: '@echo_settings_rewind_amount',
   SOLVER_URL: '@echo_settings_solver_url',
   SOLVER_KEY: '@echo_settings_solver_key',
+  USE_REMOTE_SOLVER: '@echo_settings_use_remote_solver',
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -62,6 +65,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [rewindAmount, setRewindAmountState] = useState(1.5);
   const [solverUrl, setSolverUrlState] = useState(DEFAULT_SOLVER_URL);
   const [solverKey, setSolverKeyState] = useState(DEFAULT_SOLVER_KEY);
+  const [useRemoteSolver, setUseRemoteSolverState] = useState(true);
 
   // Load settings on mount
   useEffect(() => {
@@ -74,7 +78,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           savedPause, 
           savedRewind, 
           savedSolver, 
-          savedKey
+          savedKey,
+          savedUseRemote
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
@@ -83,6 +88,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           AsyncStorage.getItem(STORAGE_KEYS.REWIND_AMOUNT),
           AsyncStorage.getItem(STORAGE_KEYS.SOLVER_URL),
           AsyncStorage.getItem(STORAGE_KEYS.SOLVER_KEY),
+          AsyncStorage.getItem(STORAGE_KEYS.USE_REMOTE_SOLVER),
         ]);
 
         // Batch these updates
@@ -92,6 +98,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         if (savedPause) setPauseOnEndState(savedPause === 'true');
         if (savedSolver) setSolverUrlState(savedSolver);
         if (savedKey) setSolverKeyState(savedKey);
+        if (savedUseRemote) setUseRemoteSolverState(savedUseRemote === 'true');
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
@@ -143,6 +150,11 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.SOLVER_KEY, value);
   };
 
+  const setUseRemoteSolver = async (value: boolean) => {
+    setUseRemoteSolverState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.USE_REMOTE_SOLVER, value.toString());
+  };
+
   const colorScheme = theme === 'system' ? systemColorScheme : theme;
 
   return (
@@ -162,6 +174,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setSolverUrl,
         solverKey,
         setSolverKey,
+        useRemoteSolver,
+        setUseRemoteSolver,
         colorScheme,
         isInitialized
       }}
