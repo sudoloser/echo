@@ -21,6 +21,7 @@ To speed up the PoW challenge solving (which can be slow on mobile JS), you can 
 1. The solver code is located in the `server/` directory.
 2. Deploy it to a service like [Render](https://render.com/) or [Vercel](https://vercel.com/).
 3. Set an environment variable on your hosting provider: `SOLVER_KEY=your_secret_key_here`.
+4. **24/7 Hosting (Render Free Tier):** To prevent your Render service from spinning down, use a service like [UptimeRobot](https://uptimerobot.com/) to ping your server's `/health` endpoint (e.g., `https://my-solver.onrender.com/health`) every 5 minutes.
 
 ### 2. Configure the App
 #### For Development/Personal Use:
@@ -28,10 +29,23 @@ Go to the **Settings** tab in the app and enter:
 - **Solver URL**: Your deployed server URL (e.g., `https://my-solver.onrender.com`).
 - **Solver Key**: The same secret key you set in step 1.
 
-#### For Forks/Production Builds:
-Set these Repository Secrets in GitHub to inject them into your builds:
-- `EXPO_PUBLIC_SOLVER_URL`: Your solver's URL.
-- `EXPO_PUBLIC_SOLVER_KEY`: Your secret key.
+#### For Automated Builds (GitHub Actions):
+Set these **Repository Secrets** in GitHub (Settings > Secrets and variables > Actions):
+- `SOLVER_URL`: Your solver's URL.
+- `SOLVER_KEY`: Your secret key.
+
+These will be automatically injected as `EXPO_PUBLIC_SOLVER_URL` and `EXPO_PUBLIC_SOLVER_KEY` during the Android build and GitHub Pages deployment.
+
+## Deployment
+
+### Android (APK)
+The project includes a GitHub Workflow that automatically builds a debug APK on every push to `main`. You can find the APKs in the **Actions** tab under the latest run.
+
+### Web (GitHub Pages)
+This app is fully compatible with GitHub Pages. On every push to `main`, it automatically exports the web version to the `gh-pages` branch.
+1. Go to your repository **Settings** > **Pages**.
+2. Set **Source** to "GitHub Actions".
+3. The app will be live at `https://<your-username>.github.io/echo/`.
 
 ## Getting Started
 
