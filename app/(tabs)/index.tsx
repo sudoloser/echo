@@ -566,9 +566,6 @@ export default function EditorScreen() {
   const [artistName, setArtistName] = useState('');
   const [albumName, setAlbumName] = useState('');
 
-  // Editing state extensions
-  const [pendingPosition, setPendingPosition] = useState<'left' | 'center' | 'right'>('center');
-
   // Auto-save logic
   useEffect(() => {
     const saveProgress = async () => {
@@ -912,18 +909,16 @@ export default function EditorScreen() {
   const handleEditLine = (line: LyricLine) => {
     setEditingLineId(line.id);
     setPendingText(line.text);
-    setPendingPosition((line.position as any) || 'center');
     setShowTextInput(true);
   };
 
   const saveLyricLine = () => {
     triggerHaptic('success');
     let updatedLyrics = [...lyrics];
-    const finalPosition = pendingPosition === 'center' ? undefined : pendingPosition;
 
     if (editingLineId) {
       updatedLyrics = updatedLyrics.map((l) => 
-        l.id === editingLineId ? { ...l, text: pendingText, position: finalPosition } : l
+        l.id === editingLineId ? { ...l, text: pendingText } : l
       );
     } else if (currentLineStart !== null) {
       const newLine: LyricLine = {
@@ -931,7 +926,6 @@ export default function EditorScreen() {
         start: currentLineStart,
         end: position,
         text: pendingText,
-        position: finalPosition,
       };
       updatedLyrics.push(newLine);
     }
@@ -1538,31 +1532,6 @@ export default function EditorScreen() {
               placeholder="Type the lyric..."
               placeholderTextColor={theme.secondaryText}
             />
-            
-            <View style={{ marginTop: 10, backgroundColor: 'transparent' }}>
-              <Text style={[styles.label, { color: theme.secondaryText, marginBottom: 8 }]}>Position</Text>
-              <View style={styles.positionRow}>
-                {(['left', 'center', 'right'] as const).map((pos) => (
-                  <TouchableOpacity
-                    key={pos}
-                    onPress={() => setPendingPosition(pos)}
-                    style={[
-                      styles.positionButton,
-                      { borderColor: theme.border },
-                      pendingPosition === pos && { backgroundColor: theme.tint, borderColor: theme.tint }
-                    ]}
-                  >
-                    <Text style={[
-                      styles.positionButtonText,
-                      { color: theme.text },
-                      pendingPosition === pos && { color: theme.background }
-                    ]}>
-                      {pos.toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
 
             <View style={styles.modalActions}>
                <TouchableOpacity
