@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import ColorPicker, { HueCircular, Panel1, Preview } from 'reanimated-color-picker';
 import { runOnJS } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 
 // Helper to determine the actual ColorPicker component
 const ActualColorPicker: any = (ColorPicker as any).ColorPicker || ColorPicker;
