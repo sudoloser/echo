@@ -47,6 +47,7 @@
     "reanimated-color-picker": "^4.2.0"
   },
   "devDependencies": {
+    "@expo/config-plugins": "^55.0.6",
     "@types/react": "~19.2.2",
     "typescript": "~5.9.2"
   },
