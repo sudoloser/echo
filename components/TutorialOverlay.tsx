@@ -211,6 +211,7 @@ export default function TutorialOverlay({ onModeChange }: { onModeChange?: (mode
   const step = steps[currentStep];
   const highlight = step.targetKey ? layouts[step.targetKey] : undefined;
   const dimmerColor = colorScheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+  const contrastColor = getContrastColor(theme.tint);
 
   // Heuristic-based positioning logic for Echo
   let cardPosition: any = { justifyContent: 'center' };
@@ -313,10 +314,10 @@ export default function TutorialOverlay({ onModeChange }: { onModeChange?: (mode
               style={[styles.nextButton, { backgroundColor: theme.tint }]} 
               onPress={handleNext}
             >
-              <Text style={[styles.nextButtonText, { color: theme.background }]}>
+              <Text style={[styles.nextButtonText, { color: contrastColor }]}>
                 {currentStep === steps.length - 1 ? "Finish" : "Next"}
               </Text>
-              {currentStep < steps.length - 1 && <ChevronRight size={18} color={theme.background} />}
+              {currentStep < steps.length - 1 && <ChevronRight size={18} color={contrastColor} />}
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -324,6 +325,16 @@ export default function TutorialOverlay({ onModeChange }: { onModeChange?: (mode
     </Modal>
   );
 }
+
+// Helper to get contrast color
+const getContrastColor = (hex: string) => {
+  if (!hex || hex.includes('NaN')) return '#ffffff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128 ? '#000000' : '#ffffff';
+};
 
 const styles = StyleSheet.create({
   overlay: {

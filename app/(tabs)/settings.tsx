@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, TextInput, Switch, Modal, Alert, Platform } from 'react-native';
-import { Moon, Sun, Monitor, Check, X, ChevronRight, Trash2, Sparkles } from 'lucide-react-native';
+import { Moon, Sun, Monitor, Check, X, ChevronRight, Trash2, Sparkles, Palette } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import ColorPicker, { HueCircular, Panel1, Preview } from 'reanimated-color-picker';
+import ColorPicker, { HueCircular, Panel1, Preview, BrightnessSlider } from 'reanimated-color-picker';
 import { runOnJS } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
@@ -36,8 +36,10 @@ export default function SettingsScreen() {
   const themeColors = useTheme();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showAccentPicker, setShowAccentPicker] = useState(false);
   const [tempTheme, setTempTheme] = useState<CustomTheme>(customTheme);
   const [editingKey, setEditingKey] = useState<keyof CustomTheme | null>(null);
+  const [tempAccent, setTempAccent] = useState(customTheme.tint);
 
   // Sync tempTheme when modal opens
   useEffect(() => {
@@ -77,6 +79,15 @@ export default function SettingsScreen() {
     setCustomTheme(tempTheme);
     setAccentKey('custom');
     setShowThemeModal(false);
+  };
+
+  const handleApplyCustomAccent = () => {
+    setCustomTheme({
+      ...customTheme,
+      tint: tempAccent
+    });
+    setAccentKey('custom');
+    setShowAccentPicker(false);
   };
 
   const handleEraseAllData = () => {
@@ -160,6 +171,24 @@ export default function SettingsScreen() {
               onPress={() => setAccentKey(key)}
             />
           ))}
+          <TouchableOpacity
+            style={[
+              styles.accentButton,
+              { 
+                backgroundColor: accentKey === 'custom' ? themeColors.tint : themeColors.border,
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: accentKey === 'custom' ? 3 : 0,
+                borderColor: themeColors.text
+              }
+            ]}
+            onPress={() => {
+              setTempAccent(customTheme.tint);
+              setShowAccentPicker(true);
+            }}
+          >
+            <Palette size={20} color={accentKey === 'custom' ? themeColors.background : themeColors.secondaryText} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -332,6 +361,7 @@ export default function SettingsScreen() {
                   >
                     <Panel1 style={styles.pickerPanel} />
                     <HueCircular style={styles.pickerWheel} />
+                    <BrightnessSlider style={styles.pickerSlider} />
                     <Preview hideInitialColor />
                   </ActualColorPicker>
                 </View>
@@ -348,9 +378,64 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Accent Picker Modal */}
+      <Modal visible={showAccentPicker} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          {enableFancyAnimations && Platform.OS !== 'web' && (
+            <BlurView intensity={25} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[
+            styles.modalContent, 
+            { backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: 1 },
+            enableFancyAnimations && { backgroundColor: themeColors.background + 'CC' }
+          ]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pick Accent Color</Text>
+              <TouchableOpacity onPress={() => setShowAccentPicker(false)}>
+                <X color={themeColors.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.pickerContainer}>
+              <ActualColorPicker 
+                value={tempAccent} 
+                onChange={({ hex }: any) => {
+                  'worklet';
+                  if (hex && !hex.includes('NaN')) {
+                    runOnJS(setTempAccent)(hex.slice(0, 7));
+                  }
+                }}
+              >
+                <HueCircular style={styles.pickerWheel} />
+                <BrightnessSlider style={styles.pickerSlider} />
+                <Preview hideInitialColor />
+              </ActualColorPicker>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.applyButton, { backgroundColor: tempAccent }]}
+              onPress={handleApplyCustomAccent}
+            >
+              <Check size={20} color={getContrastColor(tempAccent)} style={{ marginRight: 8 }} />
+              <Text style={[styles.applyButtonText, { color: getContrastColor(tempAccent) }]}>Apply Accent</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
+
+// Helper to get contrast color
+const getContrastColor = (hex: string) => {
+  if (!hex || hex.includes('NaN')) return '#ffffff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128 ? '#000000' : '#ffffff';
+};
 
 function ColorPickerRow({ label, value, onPress, active, themeColors }: any) {
   return (
@@ -561,6 +646,13 @@ const styles = StyleSheet.create({
   pickerWheel: {
     width: 200,
     height: 200,
+    marginBottom: 20,
+  },
+  pickerSlider: {
+    width: '100%',
+    height: 30,
+    borderRadius: 15,
+    marginBottom: 20,
   },
   applyButton: {
     flexDirection: 'row',

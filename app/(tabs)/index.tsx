@@ -383,6 +383,16 @@ function AnimatedLineText({ text, isActive, theme, enableFancyAnimations, textAl
   );
 }
 
+// Helper to get contrast color
+const getContrastColor = (hex: string) => {
+  if (!hex || hex.includes('NaN')) return '#ffffff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128 ? '#000000' : '#ffffff';
+};
+
 // Memoized Mode Toggle
 const ModeTogglePill = memo(({ 
   currentMode, 
@@ -418,6 +428,7 @@ const ModeTogglePill = memo(({
 
   const isWeb = Platform.OS === 'web';
   const showBlur = enableFancyAnimations && !isWeb;
+  const contrastColor = getContrastColor(theme.tint);
 
   return (
     <View 
@@ -469,11 +480,11 @@ const ModeTogglePill = memo(({
             style={[
               styles.pillText, 
               { color: currentMode === mode 
-                ? (enableFancyAnimations ? '#fff' : theme.background) 
+                ? (enableFancyAnimations ? contrastColor : theme.background) 
                 : theme.secondaryText 
               },
               enableFancyAnimations && currentMode === mode && {
-                textShadowColor: 'rgba(0,0,0,0.2)',
+                textShadowColor: contrastColor === '#ffffff' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
                 textShadowOffset: { width: 0, height: 1 },
                 textShadowRadius: 2,
               }
