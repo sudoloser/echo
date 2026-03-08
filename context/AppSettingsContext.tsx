@@ -18,6 +18,10 @@ interface AppSettingsContextType {
   setRewindAmount: (value: number) => void;
   enableFancyAnimations: boolean;
   setEnableFancyAnimations: (value: boolean) => void;
+  hasCompletedTutorial: boolean;
+  setHasCompletedTutorial: (value: boolean) => void;
+  alwaysShowTutorial: boolean;
+  setAlwaysShowTutorial: (value: boolean) => void;
   colorScheme: 'light' | 'dark';
   isInitialized: boolean;
 }
@@ -29,6 +33,8 @@ const STORAGE_KEYS = {
   REWIND_AMOUNT: '@echo_settings_rewind_amount',
   CUSTOM_THEME: '@echo_settings_custom_theme',
   FANCY_ANIMATIONS: '@echo_settings_fancy_animations',
+  HAS_COMPLETED_TUTORIAL: '@echo_settings_has_completed_tutorial',
+  ALWAYS_SHOW_TUTORIAL: '@echo_settings_always_show_tutorial',
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -48,6 +54,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [pauseOnEnd, setPauseOnEndState] = useState(true);
   const [rewindAmount, setRewindAmountState] = useState(1.5);
   const [enableFancyAnimations, setEnableFancyAnimationsState] = useState(false);
+  const [hasCompletedTutorial, setHasCompletedTutorialState] = useState(false);
+  const [alwaysShowTutorial, setAlwaysShowTutorialState] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -58,7 +66,9 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           savedPause, 
           savedRewind, 
           savedCustomTheme,
-          savedFancy
+          savedFancy,
+          savedHasCompletedTutorial,
+          savedAlwaysShowTutorial
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
@@ -66,6 +76,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           AsyncStorage.getItem(STORAGE_KEYS.REWIND_AMOUNT),
           AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_THEME),
           AsyncStorage.getItem(STORAGE_KEYS.FANCY_ANIMATIONS),
+          AsyncStorage.getItem(STORAGE_KEYS.HAS_COMPLETED_TUTORIAL),
+          AsyncStorage.getItem(STORAGE_KEYS.ALWAYS_SHOW_TUTORIAL),
         ]);
 
         if (savedTheme) setThemeState(savedTheme as Theme);
@@ -73,6 +85,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         if (savedPause) setPauseOnEndState(savedPause === 'true');
         if (savedCustomTheme) setCustomThemeState(JSON.parse(savedCustomTheme));
         if (savedFancy) setEnableFancyAnimationsState(savedFancy === 'true');
+        if (savedHasCompletedTutorial) setHasCompletedTutorialState(savedHasCompletedTutorial === 'true');
+        if (savedAlwaysShowTutorial) setAlwaysShowTutorialState(savedAlwaysShowTutorial === 'true');
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
@@ -117,6 +131,16 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.FANCY_ANIMATIONS, value.toString());
   };
 
+  const setHasCompletedTutorial = async (value: boolean) => {
+    setHasCompletedTutorialState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.HAS_COMPLETED_TUTORIAL, value.toString());
+  };
+
+  const setAlwaysShowTutorial = async (value: boolean) => {
+    setAlwaysShowTutorialState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.ALWAYS_SHOW_TUTORIAL, value.toString());
+  };
+
   const colorScheme = theme === 'system' ? systemColorScheme : theme;
 
   return (
@@ -134,6 +158,10 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setRewindAmount,
         enableFancyAnimations,
         setEnableFancyAnimations,
+        hasCompletedTutorial,
+        setHasCompletedTutorial,
+        alwaysShowTutorial,
+        setAlwaysShowTutorial,
         colorScheme,
         isInitialized
       }}

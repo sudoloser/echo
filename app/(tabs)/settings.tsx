@@ -29,6 +29,8 @@ export default function SettingsScreen() {
     setRewindAmount,
     enableFancyAnimations,
     setEnableFancyAnimations,
+    alwaysShowTutorial,
+    setAlwaysShowTutorial,
     colorScheme 
   } = useAppSettings();
   const themeColors = useTheme();
@@ -241,11 +243,29 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Developer Settings</Text>
+        <View style={styles.settingRow}>
+          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+            <Text style={styles.settingLabel}>Always show tutorial</Text>
+            <Text style={[styles.hint, { color: themeColors.secondaryText, marginTop: 4 }]}>
+              Show the welcome tutorial every time the app starts, regardless of completion progress.
+            </Text>
+          </View>
+          <Switch
+            value={alwaysShowTutorial}
+            onValueChange={setAlwaysShowTutorial}
+            trackColor={{ false: themeColors.border, true: themeColors.tint }}
+            thumbColor="#fff"
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>About Echo</Text>
         <Text style={styles.aboutText}>
           Echo is a minimalist lyric editor for syncing and publishing lyrics to LRCLIB.
         </Text>
-        <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.0.0</Text>
+        <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.0.1</Text>
       </View>
 
       {/* Theme Maker Modal */}

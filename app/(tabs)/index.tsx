@@ -57,6 +57,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppWebView from '@/components/AppWebView';
+import TutorialOverlay, { TutorialProvider, useTutorial, TutorialView } from '@/components/TutorialOverlay';
 import { BlurView } from 'expo-blur';
 
 import { Text, View, useTheme } from '@/components/Themed';
@@ -501,6 +502,9 @@ const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
 export default function EditorScreen() {
   const { colorScheme, pauseOnEnd, rewindAmount, enableFancyAnimations } = useAppSettings();
   const theme = useTheme();
+  const { registerLayout, isVisible: isTutorialVisible, currentStep, steps } = useTutorial();
+
+  const isTutorialFABStep = isTutorialVisible && steps[currentStep]?.targetKey === 'fab_sync';
 
   // Storage Keys for Auto-save
   const EDITOR_STORAGE_KEYS = useMemo(() => ({
@@ -1267,7 +1271,10 @@ export default function EditorScreen() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       
       {/* Audio Controls */}
-      <View style={styles.audioControls}>
+      <TutorialView 
+        style={styles.audioControls}
+        targetKey="audio_controls"
+      >
         <TouchableOpacity 
           onPress={pickAudio} 
           style={[styles.fileButton, { borderColor: theme.border }]}
@@ -1323,7 +1330,10 @@ export default function EditorScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.nudgeRow}>
+        <TutorialView 
+          style={styles.nudgeRow}
+          targetKey="nudge_controls"
+        >
           <TouchableOpacity onPress={() => nudgePosition(-5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
             <ChevronFirst color={theme.secondaryText} size={18} />
             <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>-5s</Text>
@@ -1346,32 +1356,47 @@ export default function EditorScreen() {
             <ChevronLast color={theme.secondaryText} size={18} />
             <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>+5s</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </TutorialView>
+      </TutorialView>
 
       {/* Mode Toggle Pill */}
       <View style={styles.toggleContainer}>
         <TouchableOpacity onPress={handleReset} style={{ padding: 4 }}>
           <Trash2 color="#ff4444" size={24} />
         </TouchableOpacity>
-        <ModeTogglePill 
-          currentMode={editorMode} 
-          onModeChange={setEditorMode} 
-          theme={theme} 
-        />
-        <TouchableOpacity onPress={() => {
-          setShareStep('options');
-          setShowShareModal(true);
-        }}>
-          <Share color={theme.tint} size={24} />
-        </TouchableOpacity>
+        <TutorialView 
+          style={{ flex: 1, height: 40, justifyContent: 'center' }}
+          targetKey="mode_toggle"
+        >
+          <ModeTogglePill 
+            currentMode={editorMode} 
+            onModeChange={setEditorMode} 
+            theme={theme} 
+          />
+        </TutorialView>
+        <TutorialView 
+          targetKey="share_button"
+        >
+          <TouchableOpacity 
+            onPress={() => {
+              setShareStep('options');
+              setShowShareModal(true);
+            }}
+            style={{ padding: 4 }}
+          >
+            <Share color={theme.tint} size={24} />
+          </TouchableOpacity>
+        </TutorialView>
       </View>
 
       {/* Content Area */}
       <View style={[styles.contentArea, { borderColor: theme.border }]}>
         {editorMode === 'sync' ? (
           <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-            <View style={styles.offsetRow}>
+            <TutorialView 
+              style={[styles.offsetRow, { height: 40, justifyContent: 'center' }]}
+              targetKey="offset_controls"
+            >
               <Text style={[styles.offsetLabel, { color: theme.secondaryText }]}>Global Offset:</Text>
               <TouchableOpacity style={[styles.offsetButton, { borderColor: theme.border }]} onPress={() => applyOffset(-100)}>
                 <Text style={{ color: theme.tint, fontSize: 12 }}>-100ms</Text>
@@ -1379,7 +1404,7 @@ export default function EditorScreen() {
               <TouchableOpacity style={[styles.offsetButton, { borderColor: theme.border }]} onPress={() => applyOffset(100)}>
                 <Text style={{ color: theme.tint, fontSize: 12 }}>+100ms</Text>
               </TouchableOpacity>
-            </View>
+            </TutorialView>
             <FlatList
               data={lyrics}
             keyExtractor={(item) => item.id}
@@ -1460,19 +1485,24 @@ export default function EditorScreen() {
       </View>
 
       {/* FAB */}
-      {editorMode === 'sync' && sound && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.tint }]}
-          onPress={handleFABPress}
+      {(editorMode === 'sync' && (sound || isTutorialFABStep)) && (
+        <TutorialView
+          targetKey="fab_sync"
+          style={styles.fabContainer}
         >
-          {syncState === 'idle' ? (
-            <Plus color={theme.background} size={32} />
-          ) : syncState === 'capturing_start' ? (
-            <Text style={[styles.fabText, { color: theme.background }]}>END</Text>
-          ) : (
-            <Save color={theme.background} size={32} />
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: theme.tint, position: 'relative', bottom: 0, right: 0 }]}
+            onPress={handleFABPress}
+          >
+            {syncState === 'idle' ? (
+              <Plus color={theme.background} size={32} />
+            ) : syncState === 'capturing_start' ? (
+              <Text style={[styles.fabText, { color: theme.background }]}>END</Text>
+            ) : (
+              <Save color={theme.background} size={32} />
+            )}
+          </TouchableOpacity>
+        </TutorialView>
       )}
 
       {/* Text Input Modal for FAB Sync & Editing */}
@@ -1905,6 +1935,7 @@ export default function EditorScreen() {
           </View>
         </View>
       </Modal>
+      <TutorialOverlay onModeChange={setEditorMode} />
     </View>
   );
 }
@@ -2205,10 +2236,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     opacity: 1,
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
     bottom: 30,
     right: 30,
+    zIndex: 10,
+  },
+  fab: {
     width: 64,
     height: 64,
     borderRadius: 32,

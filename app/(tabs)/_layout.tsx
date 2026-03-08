@@ -1,11 +1,33 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Music, Settings } from 'lucide-react-native';
+import { View } from 'react-native';
 
 import { getThemeColors } from '@/constants/Colors';
 import { useAppSettings } from '@/context/AppSettingsContext';
+import { TutorialProvider, useTutorial, TutorialView } from '@/components/TutorialOverlay';
+
+function TabBarIcon({ color, name }: { color: string, name: string }) {
+  if (name === 'settings') {
+    return (
+      <TutorialView targetKey="settings_tab">
+        <Settings color={color} size={24} />
+      </TutorialView>
+    );
+  }
+  
+  return name === 'index' ? <Music color={color} size={24} /> : null;
+}
 
 export default function TabLayout() {
+  return (
+    <TutorialProvider>
+      <TabLayoutContent />
+    </TutorialProvider>
+  );
+}
+
+function TabLayoutContent() {
   const { colorScheme, accentKey, customTheme } = useAppSettings();
   const theme = getThemeColors(accentKey, customTheme)[colorScheme];
 
@@ -29,14 +51,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Editor',
-          tabBarIcon: ({ color }) => <Music color={color} size={24} />,
+          tabBarIcon: ({ color }) => <TabBarIcon color={color} name="index" />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <Settings color={color} size={24} />,
+          tabBarIcon: ({ color }) => <TabBarIcon color={color} name="settings" />,
         }}
       />
     </Tabs>
