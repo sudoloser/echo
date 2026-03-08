@@ -22,8 +22,6 @@ export default function SettingsScreen() {
     setAccentKey,
     customTheme,
     setCustomTheme,
-    userAgent, 
-    setUserAgent, 
     pauseOnEnd, 
     setPauseOnEnd, 
     rewindAmount,
@@ -228,29 +226,6 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>LRCLIB Configuration</Text>
-        
-        <Text style={[styles.label, { color: themeColors.secondaryText, marginTop: 10 }]}>User-Agent</Text>
-        <TextInput
-          style={[
-            styles.input, 
-            { 
-              color: themeColors.text, 
-              borderColor: themeColors.border,
-              backgroundColor: themeColors.background 
-            }
-          ]}
-          value={userAgent}
-          onChangeText={setUserAgent}
-          placeholder="Enter User-Agent"
-          placeholderTextColor={themeColors.secondaryText}
-        />
-        <Text style={[styles.hint, { color: themeColors.secondaryText }]}>
-          LRCLIB requires a descriptive User-Agent for identification.
-        </Text>
-      </View>
-
-      <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: '#ef4444' }]}>Danger Zone</Text>
         <TouchableOpacity
           style={[styles.eraseButton, { borderColor: '#ef4444' }]}
@@ -269,7 +244,7 @@ export default function SettingsScreen() {
         <Text style={styles.aboutText}>
           Echo is a minimalist lyric editor for syncing and publishing lyrics to LRCLIB.
         </Text>
-        <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.1.0</Text>
+        <Text style={[styles.version, { color: themeColors.secondaryText }]}>Version 1.0.0</Text>
       </View>
 
       {/* Theme Maker Modal */}

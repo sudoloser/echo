@@ -24,8 +24,14 @@ jobs:
         with:
           version: 10
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Create .env file
         run: |
@@ -36,11 +42,20 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Cache Android folder
+        id: cache-android
+        uses: actions/cache@v4
+        with:
+          path: android
+          key: ${{ runner.os }}-android-${{ hashFiles('app.json', 'package.json', 'pnpm-lock.yaml') }}
+
       - name: Prebuild Android project
+        if: steps.cache-android.outputs.cache-hit != 'true'
         run: npx expo prebuild --platform android
 
       - name: Decode Keystore

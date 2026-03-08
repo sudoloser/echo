@@ -12,8 +12,6 @@ interface AppSettingsContextType {
   setAccentKey: (key: AccentKey) => void;
   customTheme: CustomTheme;
   setCustomTheme: (theme: CustomTheme) => void;
-  userAgent: string;
-  setUserAgent: (ua: string) => void;
   pauseOnEnd: boolean;
   setPauseOnEnd: (value: boolean) => void;
   rewindAmount: number;
@@ -27,7 +25,6 @@ interface AppSettingsContextType {
 const STORAGE_KEYS = {
   THEME: '@echo_settings_theme',
   ACCENT: '@echo_settings_accent',
-  USER_AGENT: '@echo_settings_user_agent',
   PAUSE_ON_END: '@echo_settings_pause_on_end',
   REWIND_AMOUNT: '@echo_settings_rewind_amount',
   CUSTOM_THEME: '@echo_settings_custom_theme',
@@ -48,7 +45,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     secondaryText: '#666666',
     tint: '#0f172a',
   });
-  const [userAgent, setUserAgentState] = useState('Echo Lyric Editor (https://github.com/explysm/echo)');
   const [pauseOnEnd, setPauseOnEndState] = useState(true);
   const [rewindAmount, setRewindAmountState] = useState(1.5);
   const [enableFancyAnimations, setEnableFancyAnimationsState] = useState(false);
@@ -59,7 +55,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         const [
           savedTheme, 
           savedAccent, 
-          savedUA, 
           savedPause, 
           savedRewind, 
           savedCustomTheme,
@@ -67,7 +62,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
-          AsyncStorage.getItem(STORAGE_KEYS.USER_AGENT),
           AsyncStorage.getItem(STORAGE_KEYS.PAUSE_ON_END),
           AsyncStorage.getItem(STORAGE_KEYS.REWIND_AMOUNT),
           AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_THEME),
@@ -76,7 +70,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
 
         if (savedTheme) setThemeState(savedTheme as Theme);
         if (savedAccent) setAccentKeyState(savedAccent as AccentKey);
-        if (savedUA) setUserAgentState(savedUA);
         if (savedPause) setPauseOnEndState(savedPause === 'true');
         if (savedCustomTheme) setCustomThemeState(JSON.parse(savedCustomTheme));
         if (savedFancy) setEnableFancyAnimationsState(savedFancy === 'true');
@@ -109,11 +102,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_THEME, JSON.stringify(value));
   };
 
-  const setUserAgent = async (value: string) => {
-    setUserAgentState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.USER_AGENT, value);
-  };
-
   const setPauseOnEnd = async (value: boolean) => {
     setPauseOnEndState(value);
     await AsyncStorage.setItem(STORAGE_KEYS.PAUSE_ON_END, value.toString());
@@ -140,8 +128,6 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setAccentKey,
         customTheme,
         setCustomTheme,
-        userAgent, 
-        setUserAgent, 
         pauseOnEnd, 
         setPauseOnEnd, 
         rewindAmount,

@@ -1,5 +1,8 @@
 # Echo - Minimalist Lyric Editor
 
+> [!IMPORTANT]
+> **Early Access**: This project is currently in early access. You may encounter bugs or incomplete features. Please report any issues you find!
+
 Echo is a minimalist, open-source lyric editor built with Expo and TypeScript, designed specifically for syncing and publishing lyrics to [LRCLIB](https://lrclib.net/).
 
 ## Features
@@ -12,8 +15,8 @@ Echo is a minimalist, open-source lyric editor built with Expo and TypeScript, d
 
 ## Screenshots
 <p align="center">
-  <img src="assets/images/echo-ss-1.png" width="300" />
-  <img src="assets/images/echo-ss-2.png" width="300" />
+  <img src="assets/images/echo-ss-1.png" width="45%" />
+  <img src="assets/images/echo-ss-2.png" width="45%" />
 </p>
 
 ## Setup

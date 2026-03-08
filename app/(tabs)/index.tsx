@@ -36,11 +36,19 @@ import {
   CloudUpload,
   FileDown,
   ChevronLeft,
+  ChevronUp,
   Copy,
   CheckSquare,
   Gauge,
   Search,
   X,
+  Type,
+  ChevronLast,
+  ChevronFirst,
+  FastForward,
+  Rewind,
+  Activity,
+  Maximize2,
 } from 'lucide-react-native';
 import Slider from '@react-native-community/slider';
 import { StatusBar } from 'expo-status-bar';
@@ -60,23 +68,33 @@ import {
   isSynced,
 } from '@/lib/lrclib';
 
-// Memoized Sync Line to prevent re-renders on every playback tick
 const SyncLyricLine = memo(({ 
   line, 
   isActive, 
+  isExpanded,
+  rhythmMode,
+  onToggleExpand,
+  onToggleRhythm,
   onPress, 
   onDelete, 
-  onSeek, 
+  onSeek,
+  onSyllableSync,
+  currentTime,
   theme 
 }: { 
   line: LyricLine, 
   isActive: boolean, 
+  isExpanded: boolean,
+  rhythmMode: boolean,
+  onToggleExpand: (id: string) => void,
+  onToggleRhythm: () => void,
   onPress: (line: LyricLine) => void, 
   onDelete: (id: string) => void, 
   onSeek: (time: number) => void,
+  onSyllableSync: (lineId: string, wordIndex: number, time: number) => void,
+  currentTime: number,
   theme: any 
 }) => {
-  // Helper to ensure color is safe for concatenation
   const getSafeColor = (color: any, fallback: string) => {
     if (typeof color === 'string' && color.startsWith('#') && !color.includes('NaN')) {
       return color.slice(0, 7);
@@ -87,111 +105,278 @@ const SyncLyricLine = memo(({
   const safeTint = getSafeColor(theme.tint, '#0f172a');
   const safeBorder = getSafeColor(theme.border, '#e2e8f0');
 
+  // Animation logic
+  const heightProgress = useSharedValue(isExpanded ? 1 : 0);
+  
+  useEffect(() => {
+    heightProgress.value = withTiming(isExpanded ? 1 : 0, { duration: 300 });
+  }, [isExpanded]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      height: heightProgress.value * (rhythmMode ? 180 : 120), // More height for rhythm button
+      opacity: heightProgress.value,
+      overflow: 'hidden',
+    };
+  });
+
+  // Split text into words if syllables don't exist yet
+  const words = useMemo(() => {
+    if (line.syllables && line.syllables.length > 0) {
+      return line.syllables;
+    }
+    return line.text.split(' ').filter(w => w.trim()).map(w => ({ time: 0, text: w }));
+  }, [line.text, line.syllables]);
+
+  const nextUnsyncedIndex = words.findIndex(w => w.time === 0);
+
   return (
-    <Pressable 
-      style={({ pressed }) => [
-        styles.lyricLine, 
-        { borderBottomColor: safeBorder },
-        pressed && { backgroundColor: safeBorder },
-        isActive && { backgroundColor: safeTint + '15' }
-      ]}
-      onPress={() => onPress(line)}
-    >
-      <View style={styles.lyricLineInfo}>
-        <TouchableOpacity onPress={() => onSeek(line.start)}>
-          <Text style={[styles.lyricTimestamp, { color: safeTint }]}>
-            [{formatTime(line.start)}]
-          </Text>
-        </TouchableOpacity>
-        <Text style={[
-          styles.lyricText,
-          { color: getSafeColor(theme.text, '#000000') },
-          isActive && { fontWeight: 'bold', color: safeTint }
-        ]}>
-          {line.text}
-        </Text>
-      </View>
-      <TouchableOpacity onPress={() => onDelete(line.id)} style={{ padding: 10 }}>
-        <Trash2 color="#ff4444" size={18} />
-      </TouchableOpacity>
-    </Pressable>
+    <View style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: safeBorder }}>
+      <Pressable 
+        style={({ pressed }) => [
+          styles.lyricLine, 
+          pressed && { backgroundColor: safeBorder },
+          isActive && { 
+            backgroundColor: safeTint + '08',
+            borderLeftColor: safeTint,
+            borderLeftWidth: 4
+          }
+        ]}
+        onPress={() => onPress(line)}
+      >
+        <View style={styles.lyricLineInfo}>
+          <TouchableOpacity 
+            onPress={() => onSeek(line.start)}
+            style={[styles.timestampPill, { backgroundColor: safeTint + '15' }]}
+          >
+            <Text style={[styles.lyricTimestamp, { color: safeTint }]}>
+              {formatTime(line.start)}
+            </Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+            <Text style={[
+              styles.lyricText,
+              { color: getSafeColor(theme.text, '#000000') },
+              isActive && { fontWeight: '600', color: safeTint }
+            ]}>
+              {line.text}
+              {line.syllables && <Text style={{ fontSize: 10, color: safeTint }}> ✨</Text>}
+              {line.position && line.position !== 'center' && (
+                <Text style={{ fontSize: 10, color: safeTint }}> 📍{line.position.toUpperCase()}</Text>
+              )}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' }}>
+          <TouchableOpacity 
+            onPress={() => onToggleExpand(line.id)} 
+            style={{ padding: 10 }}
+          >
+            {isExpanded ? <ChevronUp size={20} color={safeTint} /> : <Plus size={20} color={safeTint} />}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onDelete(line.id)} style={{ padding: 10 }}>
+            <Trash2 color="#ff4444" size={18} />
+          </TouchableOpacity>
+        </View>
+      </Pressable>
+
+      <Animated.View style={[styles.expandedContent, { backgroundColor: theme.background }, animatedStyle]}>
+        <View style={styles.expandHeader}>
+           <Text style={[styles.hint, { color: theme.secondaryText, flex: 1 }]}>
+             {rhythmMode ? 'Rhythm Mode: Tap the big button for each word.' : 'Manual Mode: Tap word chips.'}
+           </Text>
+           <TouchableOpacity 
+             onPress={onToggleRhythm}
+             style={[styles.rhythmToggle, rhythmMode && { backgroundColor: safeTint + '15' }]}
+           >
+             <Activity size={16} color={rhythmMode ? safeTint : theme.secondaryText} />
+             <Text style={[styles.rhythmToggleText, { color: rhythmMode ? safeTint : theme.secondaryText }]}>
+               Rhythm
+             </Text>
+           </TouchableOpacity>
+        </View>
+
+        {rhythmMode ? (
+          <View style={{ gap: 10, marginTop: 5 }}>
+            <TouchableOpacity
+              activeOpacity={0.6}
+              style={[styles.rhythmTapButton, { backgroundColor: safeTint }]}
+              onPress={() => {
+                if (nextUnsyncedIndex !== -1) {
+                  onSyllableSync(line.id, nextUnsyncedIndex, currentTime);
+                }
+              }}
+              disabled={nextUnsyncedIndex === -1}
+            >
+              <Text style={[styles.rhythmTapButtonText, { color: theme.background }]}>
+                {nextUnsyncedIndex === -1 ? 'ALL WORDS SYNCED' : `TAP: "${words[nextUnsyncedIndex].text}"`}
+              </Text>
+            </TouchableOpacity>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {words.map((word, idx) => (
+                <View key={idx} style={[styles.miniWordChip, word.time > 0 && { backgroundColor: safeTint + '15', borderColor: safeTint }]}>
+                   <Text style={[styles.miniWordText, { color: word.time > 0 ? safeTint : theme.secondaryText }]}>{word.text}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.wordChipContainer}>
+            {words.map((word, idx) => (
+              <TouchableOpacity
+                key={`${line.id}-word-${idx}`}
+                onPress={() => onSyllableSync(line.id, idx, currentTime)}
+                style={[
+                  styles.wordChip,
+                  { borderColor: theme.border },
+                  word.time > 0 && { backgroundColor: safeTint, borderColor: safeTint }
+                ]}
+              >
+                <Text style={[
+                  styles.wordChipText,
+                  { color: theme.text },
+                  word.time > 0 && { color: theme.background }
+                ]}>
+                  {word.text}
+                </Text>
+                {word.time > 0 && (
+                  <Text style={[styles.wordChipTime, { color: theme.background }]}>
+                    {word.time.toFixed(1)}s
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </Animated.View>
+    </View>
   );
 }, (prev, next) => {
   return prev.isActive === next.isActive && 
+         prev.isExpanded === next.isExpanded &&
+         prev.rhythmMode === next.rhythmMode &&
+         prev.currentTime === next.currentTime &&
          prev.line.id === next.line.id &&
          prev.line.text === next.line.text && 
-         prev.line.start === next.line.start;
+         prev.line.start === next.line.start &&
+         prev.line.syllables?.length === next.line.syllables?.length &&
+         prev.line.position === next.line.position;
 });
 
 // Animated Sub-component for Player
 function AnimatedLyricLine({ 
-  text, 
+  line,
   isActive, 
+  positionSV,
   theme 
 }: { 
-  text: string, 
+  line: LyricLine, 
   isActive: boolean, 
+  positionSV: Animated.SharedValue<number>,
   theme: any 
 }) {
   const { enableFancyAnimations } = useAppSettings();
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(0.6);
-  const activeProgress = useSharedValue(isActive ? 1 : 0);
 
-  // Derive safe colors within the Reanimated runtime to prevent crashes from invalid theme values
+  // Handle positioning
+  const textAlign = line.position === 'left' ? 'flex-start' : line.position === 'right' ? 'flex-end' : 'center';
+
+  if (line.syllables && line.syllables.length > 0) {
+    return (
+      <View style={[styles.syllableLineContainer, { justifyContent: textAlign as any }]}>
+        {line.syllables.map((s, i) => {
+          return (
+            <AnimatedSyllable 
+              key={`${line.id}-${i}`}
+              text={s.text}
+              startTime={s.time}
+              isLineActive={isActive}
+              positionSV={positionSV}
+              theme={theme}
+              enableFancyAnimations={enableFancyAnimations}
+            />
+          );
+        })}
+      </View>
+    );
+  }
+
+  return (
+    <AnimatedLineText 
+      text={line.text}
+      isActive={isActive}
+      theme={theme}
+      enableFancyAnimations={enableFancyAnimations}
+      textAlign={textAlign}
+    />
+  );
+}
+
+function AnimatedSyllable({ text, startTime, isLineActive, positionSV, theme, enableFancyAnimations }: any) {
   const safeTint = useDerivedValue(() => {
     const val = theme.tint;
-    if (typeof val === 'string' && val.startsWith('#') && val.length >= 7 && !val.includes('NaN')) {
-      return val.slice(0, 7);
-    }
-    return '#0f172a'; // Fallback
-  }, [theme.tint]);
+    return (typeof val === 'string' && val.startsWith('#') && !val.includes('NaN')) ? val.slice(0, 7) : '#0f172a';
+  });
 
   const safeSecondary = useDerivedValue(() => {
     const val = theme.secondaryText;
-    if (typeof val === 'string' && val.startsWith('#') && val.length >= 7 && !val.includes('NaN')) {
-      return val.slice(0, 7);
-    }
-    return '#666666'; // Fallback
-  }, [theme.secondaryText]);
+    return (typeof val === 'string' && val.startsWith('#') && !val.includes('NaN')) ? val.slice(0, 7) : '#666666';
+  });
 
-  useEffect(() => {
-    scale.value = withSpring(isActive ? (enableFancyAnimations ? 1.1 : 1.05) : 1, { damping: 15, stiffness: 100 });
-    opacity.value = withTiming(isActive ? 1 : (enableFancyAnimations ? 0.4 : 0.6), { duration: 300 });
-    activeProgress.value = withTiming(isActive ? 1 : 0, { duration: 300 });
-  }, [isActive, enableFancyAnimations]);
+  const activeProgress = useDerivedValue(() => {
+    const isActive = isLineActive && positionSV.value >= startTime;
+    return withTiming(isActive ? 1 : 0, { duration: 150 });
+  });
 
   const animatedStyle = useAnimatedStyle(() => {
-    const glowColor = safeTint.value;
     return {
-      transform: [{ scale: scale.value }],
-      opacity: opacity.value,
+      transform: [{ scale: 1 + (activeProgress.value * 0.15) }],
+      opacity: 0.5 + (activeProgress.value * 0.5),
       color: interpolateColor(
         activeProgress.value,
         [0, 1],
         [safeSecondary.value, safeTint.value]
       ),
-      // Glowing lyrics effect
-      textShadowColor: enableFancyAnimations ? glowColor : 'transparent',
-      textShadowOffset: { width: 0, height: 0 },
-      textShadowRadius: enableFancyAnimations ? interpolateColor(
-        activeProgress.value,
-        [0, 1],
-        ['rgba(0,0,0,0)', glowColor + '80'] // Using interpolation for shadow radius is tricky, but textShadowRadius itself is a number
-      ) === 'transparent' ? 0 : withTiming(isActive ? 15 : 0, { duration: 300 }) : 0,
-    };
-  });
-
-  // Re-calculate shadow radius separately for better control
-  const animatedTextStyle = useAnimatedStyle(() => {
-    return {
-      textShadowRadius: enableFancyAnimations ? withTiming(isActive ? 15 : 0, { duration: 300 }) : 0,
-      textShadowColor: enableFancyAnimations ? safeTint.value + '80' : 'transparent',
     };
   });
 
   return (
-    <Animated.Text style={[styles.playerLine, animatedStyle, animatedTextStyle]}>
+    <Animated.Text style={[styles.syllableText, animatedStyle]}>
+      {text}{' '}
+    </Animated.Text>
+  );
+}
+
+function AnimatedLineText({ text, isActive, theme, enableFancyAnimations, textAlign }: any) {
+  const safeTint = useDerivedValue(() => {
+    const val = theme.tint;
+    return (typeof val === 'string' && val.startsWith('#') && !val.includes('NaN')) ? val.slice(0, 7) : '#0f172a';
+  });
+
+  const safeSecondary = useDerivedValue(() => {
+    const val = theme.secondaryText;
+    return (typeof val === 'string' && val.startsWith('#') && !val.includes('NaN')) ? val.slice(0, 7) : '#666666';
+  });
+
+  const activeProgress = useDerivedValue(() => {
+    return withTiming(isActive ? 1 : 0, { duration: 300 });
+  });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: 1 + (activeProgress.value * 0.05) }],
+      opacity: 0.6 + (activeProgress.value * 0.4),
+      color: interpolateColor(
+        activeProgress.value,
+        [0, 1],
+        [safeSecondary.value, safeTint.value]
+      ),
+      textAlign: (textAlign === 'flex-start' ? 'left' : textAlign === 'flex-end' ? 'right' : 'center') as any,
+    };
+  });
+
+  return (
+    <Animated.Text style={[styles.playerLine, animatedStyle]}>
       {text}
     </Animated.Text>
   );
@@ -314,7 +499,7 @@ const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
 };
 
 export default function EditorScreen() {
-  const { colorScheme, userAgent, pauseOnEnd, rewindAmount, enableFancyAnimations } = useAppSettings();
+  const { colorScheme, pauseOnEnd, rewindAmount, enableFancyAnimations } = useAppSettings();
   const theme = useTheme();
 
   // Storage Keys for Auto-save
@@ -330,6 +515,7 @@ export default function EditorScreen() {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
+  const positionSV = useSharedValue(0);
   const [duration, setDuration] = useState(0);
   const [audioFile, setAudioFile] = useState<{ uri: string; name: string } | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1.0);
@@ -356,11 +542,17 @@ export default function EditorScreen() {
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [rawLRC, setRawLRC] = useState('');
   const [editorMode, setEditorMode] = useState<'raw' | 'sync' | 'play'>('raw');
+  const [expandedLines, setExpandedLines] = useState<Set<string>>(new Set());
+  const [rhythmMode, setRhythmMode] = useState(false);
+  const isInternalUpdate = useRef(false);
 
   // Metadata state
   const [trackName, setTrackName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [albumName, setAlbumName] = useState('');
+
+  // Editing state extensions
+  const [pendingPosition, setPendingPosition] = useState<'left' | 'center' | 'right'>('center');
 
   // Auto-save logic
   useEffect(() => {
@@ -604,7 +796,9 @@ export default function EditorScreen() {
 
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
-      setPosition(status.positionMillis / 1000);
+      const pos = status.positionMillis / 1000;
+      setPosition(pos);
+      positionSV.value = pos;
       setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
       setIsPlaying(status.isPlaying);
     }
@@ -671,7 +865,15 @@ export default function EditorScreen() {
   const onSliderValueChange = async (value: number) => {
     if (sound) {
       await sound.setPositionAsync(value * 1000);
+      positionSV.value = value;
     }
+  };
+
+  const nudgePosition = async (seconds: number) => {
+    if (!sound) return;
+    const newPos = Math.max(0, Math.min(duration, position + seconds));
+    await sound.setPositionAsync(newPos * 1000);
+    triggerHaptic('light');
   };
 
   const handleFABPress = async () => {
@@ -695,15 +897,18 @@ export default function EditorScreen() {
   const handleEditLine = (line: LyricLine) => {
     setEditingLineId(line.id);
     setPendingText(line.text);
+    setPendingPosition((line.position as any) || 'center');
     setShowTextInput(true);
   };
 
   const saveLyricLine = () => {
     triggerHaptic('success');
     let updatedLyrics = [...lyrics];
+    const finalPosition = pendingPosition === 'center' ? undefined : pendingPosition;
+
     if (editingLineId) {
       updatedLyrics = updatedLyrics.map((l) => 
-        l.id === editingLineId ? { ...l, text: pendingText } : l
+        l.id === editingLineId ? { ...l, text: pendingText, position: finalPosition } : l
       );
     } else if (currentLineStart !== null) {
       const newLine: LyricLine = {
@@ -711,11 +916,13 @@ export default function EditorScreen() {
         start: currentLineStart,
         end: position,
         text: pendingText,
+        position: finalPosition,
       };
       updatedLyrics.push(newLine);
     }
     
     updatedLyrics.sort((a, b) => a.start - b.start);
+    isInternalUpdate.current = true;
     setLyrics(updatedLyrics);
     setRawLRC(formatLyricsToLRC(updatedLyrics));
     
@@ -726,20 +933,60 @@ export default function EditorScreen() {
     setEditingLineId(null);
   };
 
+  const handleToggleExpand = (id: string) => {
+    const next = new Set(expandedLines);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedLines(next);
+  };
+
+  const handleSyllableSync = (lineId: string, wordIdx: number, time: number) => {
+    triggerHaptic('light');
+    const updatedLyrics = lyrics.map(l => {
+      if (l.id === lineId) {
+        // If syllables don't exist yet, initialize them from text
+        const syllables = l.syllables || l.text.split(' ').filter(w => w.trim()).map(w => ({ time: 0, text: w }));
+        const nextSyllables = [...syllables];
+        
+        // Toggle logic: if already has time, reset it to 0
+        if (nextSyllables[wordIdx].time > 0) {
+          nextSyllables[wordIdx] = { ...nextSyllables[wordIdx], time: 0 };
+        } else {
+          nextSyllables[wordIdx] = { ...nextSyllables[wordIdx], time };
+        }
+
+        // Check if any syllable still has a timestamp
+        const hasAnySyllable = nextSyllables.some(s => s.time > 0);
+        
+        return { 
+          ...l, 
+          syllables: hasAnySyllable ? nextSyllables : undefined 
+        };
+      }
+      return l;
+    });
+    isInternalUpdate.current = true;
+    setLyrics(updatedLyrics);
+    setRawLRC(formatLyricsToLRC(updatedLyrics));
+  };
+
   const deleteLyricLine = (id: string) => {
     const updatedLyrics = lyrics.filter((l) => l.id !== id);
+    isInternalUpdate.current = true;
     setLyrics(updatedLyrics);
     setRawLRC(formatLyricsToLRC(updatedLyrics));
   };
 
   const handleRawLRCChange = (text: string) => {
+    isInternalUpdate.current = false;
     setRawLRC(text);
   };
 
   useEffect(() => {
-    if (editorMode !== 'raw') {
+    if (editorMode !== 'raw' && !isInternalUpdate.current) {
       setLyrics(parseLRCToLyrics(rawLRC));
     }
+    isInternalUpdate.current = false;
   }, [editorMode, rawLRC]);
 
   const currentLineIndex = lyrics.findIndex((line, index) => {
@@ -1075,6 +1322,31 @@ export default function EditorScreen() {
             <Search color={theme.tint} size={24} />
           </TouchableOpacity>
         </View>
+
+        <View style={styles.nudgeRow}>
+          <TouchableOpacity onPress={() => nudgePosition(-5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+            <ChevronFirst color={theme.secondaryText} size={18} />
+            <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>-5s</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => nudgePosition(-1)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+            <Rewind color={theme.secondaryText} size={18} />
+            <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>-1s</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => nudgePosition(-0.5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+             <Text style={[styles.nudgeText, { color: theme.tint }]}>-0.5s</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => nudgePosition(0.5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+             <Text style={[styles.nudgeText, { color: theme.tint }]}>+0.5s</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => nudgePosition(1)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+            <FastForward color={theme.secondaryText} size={18} />
+            <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>+1s</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => nudgePosition(5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+            <ChevronLast color={theme.secondaryText} size={18} />
+            <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>+5s</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Mode Toggle Pill */}
@@ -1115,9 +1387,15 @@ export default function EditorScreen() {
               <SyncLyricLine
                 line={item}
                 isActive={currentLineIndex === index}
+                isExpanded={expandedLines.has(item.id)}
+                rhythmMode={rhythmMode}
+                onToggleExpand={handleToggleExpand}
+                onToggleRhythm={() => setRhythmMode(!rhythmMode)}
                 onPress={handleEditLine}
                 onDelete={deleteLyricLine}
                 onSeek={onSliderValueChange}
+                onSyllableSync={handleSyllableSync}
+                currentTime={position}
                 theme={theme}
               />
             )}
@@ -1155,21 +1433,25 @@ export default function EditorScreen() {
                   contentContainerStyle={styles.playerScrollContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  {lyrics.map((line, index) => (
-                    <View 
-                      key={line.id}
-                      onLayout={(e) => {
-                        lineHeights.current[index] = e.nativeEvent.layout.height;
-                      }}
-                      style={{ alignItems: 'center', width: '100%' }}
-                    >
-                      <AnimatedLyricLine 
-                        text={line.text} 
-                        isActive={currentLineIndex === index} 
-                        theme={theme}
-                      />
-                    </View>
-                  ))}
+                  {lyrics.map((line, index) => {
+                    const alignment = line.position === 'left' ? 'flex-start' : line.position === 'right' ? 'flex-end' : 'center';
+                    return (
+                      <View 
+                        key={line.id}
+                        onLayout={(e) => {
+                          lineHeights.current[index] = e.nativeEvent.layout.height;
+                        }}
+                        style={{ alignItems: alignment, width: '100%' }}
+                      >
+                        <AnimatedLyricLine 
+                          line={line} 
+                          isActive={currentLineIndex === index} 
+                          positionSV={positionSV}
+                          theme={theme}
+                        />
+                      </View>
+                    );
+                  })}
                   <View style={{ height: 400 }} />
                 </ScrollView>
              )}
@@ -1215,6 +1497,32 @@ export default function EditorScreen() {
               placeholder="Type the lyric..."
               placeholderTextColor={theme.secondaryText}
             />
+            
+            <View style={{ marginTop: 10, backgroundColor: 'transparent' }}>
+              <Text style={[styles.label, { color: theme.secondaryText, marginBottom: 8 }]}>Position</Text>
+              <View style={styles.positionRow}>
+                {(['left', 'center', 'right'] as const).map((pos) => (
+                  <TouchableOpacity
+                    key={pos}
+                    onPress={() => setPendingPosition(pos)}
+                    style={[
+                      styles.positionButton,
+                      { borderColor: theme.border },
+                      pendingPosition === pos && { backgroundColor: theme.tint, borderColor: theme.tint }
+                    ]}
+                  >
+                    <Text style={[
+                      styles.positionButtonText,
+                      { color: theme.text },
+                      pendingPosition === pos && { color: theme.background }
+                    ]}>
+                      {pos.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             <View style={styles.modalActions}>
                <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: theme.border, marginRight: 10 }]}
@@ -1648,6 +1956,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 40,
   },
+  nudgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+    backgroundColor: 'transparent',
+  },
+  nudgeButton: {
+    alignItems: 'center',
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 44,
+  },
+  nudgeText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    fontFamily: 'SpaceMono',
+  },
   toggleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1683,22 +2010,22 @@ const styles = StyleSheet.create({
   offsetRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingBottom: 10,
+    gap: 8,
+    paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0,0,0,0.1)',
-    marginBottom: 5,
+    marginBottom: 4,
     backgroundColor: 'transparent',
   },
   offsetLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     flex: 1,
   },
   offsetButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     borderWidth: 1,
   },
   contentArea: {
@@ -1726,24 +2053,136 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   lyricLineInfo: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     flex: 1,
     backgroundColor: 'transparent',
   },
+  timestampPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    width: 65,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   lyricTimestamp: {
     fontWeight: 'bold',
     fontFamily: 'SpaceMono',
-    fontSize: 14,
+    fontSize: 12,
   },
   lyricText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  expandedContent: {
+    padding: 16,
+    paddingTop: 8,
+    borderTopWidth: 0,
+  },
+  wordChipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    backgroundColor: 'transparent',
+  },
+  wordChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  wordChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  wordChipTime: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    opacity: 0.8,
+  },
+  expandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    backgroundColor: 'transparent',
+  },
+  rhythmToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  rhythmToggleText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  rhythmTapButton: {
+    height: 60,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  rhythmTapButtonText: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  miniWordChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  miniWordText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  positionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: 'transparent',
+  },
+  positionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  positionButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  syllableLineContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    marginVertical: 12,
+  },
+  syllableText: {
+    fontSize: 22,
+    fontWeight: '600',
   },
   playerContainer: {
     flex: 1,
