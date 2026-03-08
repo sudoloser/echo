@@ -49,6 +49,8 @@ import {
   Rewind,
   Activity,
   Maximize2,
+  Undo2,
+  Redo2,
 } from 'lucide-react-native';
 import Slider from '@react-native-community/slider';
 import { StatusBar } from 'expo-status-bar';
@@ -556,6 +558,9 @@ export default function EditorScreen() {
   // Lyrics state
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [rawLRC, setRawLRC] = useState('');
+  const [history, setHistory] = useState<string[]>(['']);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isUndoRedoAction = useRef(false);
   const [editorMode, setEditorMode] = useState<'raw' | 'sync' | 'play'>('raw');
   const [expandedLines, setExpandedLines] = useState<Set<string>>(new Set());
   const [rhythmMode, setRhythmMode] = useState(false);
@@ -565,6 +570,54 @@ export default function EditorScreen() {
   const [trackName, setTrackName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [albumName, setAlbumName] = useState('');
+
+  // Undo/Redo logic
+  const addToHistory = (text: string) => {
+    setHistory(prev => {
+      if (text === prev[historyIndex]) return prev;
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push(text);
+      if (newHistory.length > 50) newHistory.shift();
+      return newHistory;
+    });
+    setHistoryIndex(prev => {
+      const newLen = Math.min(history.length + 1, 51);
+      const nextIndex = history.slice(0, historyIndex + 1).length;
+      return nextIndex;
+    });
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      isUndoRedoAction.current = true;
+      const prev = history[historyIndex - 1];
+      setRawLRC(prev);
+      setHistoryIndex(historyIndex - 1);
+      triggerHaptic('light');
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      isUndoRedoAction.current = true;
+      const next = history[historyIndex + 1];
+      setRawLRC(next);
+      setHistoryIndex(historyIndex + 1);
+      triggerHaptic('light');
+    }
+  };
+
+  // Debounced history tracking
+  useEffect(() => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      addToHistory(rawLRC);
+    }, 500); // 500ms debounce
+    return () => clearTimeout(timer);
+  }, [rawLRC]);
 
   // Auto-save logic
   useEffect(() => {
@@ -817,17 +870,34 @@ export default function EditorScreen() {
   };
 
   const parseMetadataFromFilename = (filename: string) => {
-    // Remove extension
-    const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+    // 1. Remove extension and clean up common suffixes
+    let name = filename.replace(/\.[^/.]+$/, "");
+    name = name.replace(/\s*[\(\[][^)]*(?:official|video|audio|lyrics|hd|4k|remastered)[^)]*[\)\]]/gi, "").trim();
     
-    // Try "Artist - Title" pattern
-    const parts = nameWithoutExt.split(" - ");
-    if (parts.length >= 2) {
+    // 2. Try common separators: " - ", " – ", " — ", " _ "
+    const parts = name.split(/\s*(?:\s-\s|\s–\s|\s—\s|\s_\s)\s*/);
+
+    if (parts.length >= 4) {
+      // Pattern: Artist - Album - TrackNo - Title or similar
       setArtistName(parts[0].trim());
-      setTrackName(parts.slice(1).join(" - ").trim());
+      setAlbumName(parts[1].trim());
+      setTrackName(parts.slice(3).join(" - ").trim());
+    } else if (parts.length === 3) {
+      // Pattern: Artist - Album - Title
+      setArtistName(parts[0].trim());
+      setAlbumName(parts[1].trim());
+      setTrackName(parts[2].trim());
+    } else if (parts.length === 2) {
+      // Pattern: Artist - Title
+      setArtistName(parts[0].trim());
+      setTrackName(parts[1].trim());
     } else {
-      setTrackName(nameWithoutExt);
+      // No standard separator found, try to clean track numbers from start
+      setTrackName(name.replace(/^\d+[\s\.\-_]+/, "").trim());
     }
+
+    // 3. Final cleanup: Remove track numbers like "01. ", "02 - " from trackName
+    setTrackName(prev => prev.replace(/^\d+[\s\.\-_]+/, "").trim());
   };
 
   const pickAudio = async () => {
@@ -1442,14 +1512,42 @@ export default function EditorScreen() {
           />
           </View>
         ) : editorMode === 'raw' ? (
-          <TextInput
-            style={[styles.rawInput, { color: theme.text }]}
-            multiline
-            value={rawLRC}
-            onChangeText={handleRawLRCChange}
-            placeholder="Paste raw LRC or plain text here..."
-            placeholderTextColor={theme.secondaryText}
-          />
+          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+            <View style={styles.rawToolbar}>
+              <View style={{ flexDirection: 'row', gap: 10, backgroundColor: 'transparent' }}>
+                <TouchableOpacity 
+                  onPress={undo} 
+                  disabled={historyIndex === 0}
+                  style={[styles.toolButton, historyIndex === 0 && { opacity: 0.3 }]}
+                >
+                  <Undo2 size={20} color={theme.tint} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={redo} 
+                  disabled={historyIndex >= history.length - 1}
+                  style={[styles.toolButton, historyIndex >= history.length - 1 && { opacity: 0.3 }]}
+                >
+                  <Redo2 size={20} color={theme.tint} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity 
+                onPress={() => handleRawLRCChange('')}
+                style={[styles.toolButton, { flexDirection: 'row', gap: 6 }]}
+              >
+                <Trash2 size={16} color="#ff4444" />
+                <Text style={{ color: '#ff4444', fontSize: 12, fontWeight: 'bold' }}>Clear All</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.rawInput, { color: theme.text }]}
+              multiline
+              value={rawLRC}
+              onChangeText={handleRawLRCChange}
+              placeholder="Paste raw LRC or plain text here..."
+              placeholderTextColor={theme.secondaryText}
+              textAlignVertical="top"
+            />
+          </View>
         ) : (
           <View style={styles.playerContainer}>
              {lyrics.length === 0 ? (
@@ -1927,6 +2025,20 @@ function formatTime(seconds: number) {
 }
 
 const styles = StyleSheet.create({
+  rawToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150,150,150,0.2)',
+    backgroundColor: 'transparent',
+  },
+  toolButton: {
+    padding: 6,
+    borderRadius: 8,
+  },
   container: {
     flex: 1,
     padding: 20,
@@ -2048,6 +2160,7 @@ const styles = StyleSheet.create({
   },
   rawInput: {
     flex: 1,
+    padding: 12,
     fontSize: 16,
     textAlignVertical: 'top',
   },
