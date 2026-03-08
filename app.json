@@ -51,7 +51,8 @@
         {
           "checkOnLaunch": "NEVER"
         }
-      ]
+      ],
+      "./plugins/withJitPackFixed"
     ],
     "updates": {
       "url": "https://explysm.github.io/echo",
