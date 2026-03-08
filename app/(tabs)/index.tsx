@@ -1530,13 +1530,6 @@ export default function EditorScreen() {
                   <Redo2 size={20} color={theme.tint} />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity 
-                onPress={() => handleRawLRCChange('')}
-                style={[styles.toolButton, { flexDirection: 'row', gap: 6 }]}
-              >
-                <Trash2 size={16} color="#ff4444" />
-                <Text style={{ color: '#ff4444', fontSize: 12, fontWeight: 'bold' }}>Clear All</Text>
-              </TouchableOpacity>
             </View>
             <TextInput
               style={[styles.rawInput, { color: theme.text }]}
