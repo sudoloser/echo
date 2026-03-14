@@ -1,5 +1,14 @@
 # Echo - Minimalist Lyric Editor
 
+<div style="background: #222; color: #ff4444; padding: 16px; border-radius: 8px; margin: 16px 0; text-align: center; font-weight: bold; border: 2px solid #ff4444;">
+  <a href="https://keepandroidopen.org/" style="color: #ffdd44; text-decoration: underline;">
+    Keep Android Open
+  </a>
+  – No paid registration, no government ID, no Google gatekeeping for Android developers.<br>
+  Android will become locked down in \~170 days. Sign the letter →
+  <a href="https://keepandroidopen.org/open-letter" style="color: #ffdd44;">open letter</a>
+</div>
+<br>
 > [!IMPORTANT]
 > **Early Access**: This project is currently in early access. You may encounter bugs or incomplete features. Please report any issues you find!
 
