@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LyricLine } from '@/lib/lrclib';
 
 export type LayoutSlot = 'editor' | 'player' | 'syncer';
 
@@ -48,6 +47,15 @@ export const LAYOUT_PRESETS: Record<string, LayoutConfig> = {
   },
 };
 
+export const DEFAULT_CUSTOM_LAYOUT: LayoutConfig = {
+  slots: {
+    editor: { visible: true, flex: 1 },
+    player: { visible: true, flex: 1 },
+    syncer: { visible: false, flex: 0 },
+  },
+  direction: 'row',
+};
+
 export interface LayoutSlots {
   editor: React.ReactNode;
   player: React.ReactNode;
@@ -55,12 +63,14 @@ export interface LayoutSlots {
 }
 
 interface LayoutRendererProps {
-  preset: string;
+  preset?: string;
+  customConfig?: LayoutConfig;
   slots: LayoutSlots;
 }
 
-export function LayoutRenderer({ preset, slots }: LayoutRendererProps) {
-  const config = LAYOUT_PRESETS[preset] || LAYOUT_PRESETS.default;
+export function LayoutRenderer({ preset, customConfig, slots }: LayoutRendererProps) {
+  const isCustom = preset === 'custom';
+  const config = isCustom && customConfig ? customConfig : (LAYOUT_PRESETS[preset || 'default'] || LAYOUT_PRESETS.default);
   const isRow = config.direction === 'row';
 
   const containerStyle = isRow

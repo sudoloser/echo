@@ -2,10 +2,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme as useNativeColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AccentKey, CustomTheme } from '@/constants/Theme';
+import { LayoutConfig, DEFAULT_CUSTOM_LAYOUT } from '@/lib/layouts';
 
 type Theme = 'light' | 'dark' | 'system';
 
-export type LayoutPreset = 'default' | 'side-by-side' | 'editor-focused' | 'player-focused';
+export type LayoutPreset = 'default' | 'side-by-side' | 'editor-focused' | 'player-focused' | 'custom';
 
 interface AppSettingsContextType {
   theme: Theme;
@@ -26,6 +27,8 @@ interface AppSettingsContextType {
   setAlwaysShowTutorial: (value: boolean) => void;
   layoutPreset: LayoutPreset;
   setLayoutPreset: (preset: LayoutPreset) => void;
+  customLayoutConfig: LayoutConfig;
+  setCustomLayoutConfig: (config: LayoutConfig) => void;
   colorScheme: 'light' | 'dark';
   isInitialized: boolean;
 }
@@ -40,6 +43,7 @@ const STORAGE_KEYS = {
   HAS_COMPLETED_TUTORIAL: '@echo_settings_has_completed_tutorial',
   ALWAYS_SHOW_TUTORIAL: '@echo_settings_always_show_tutorial',
   LAYOUT_PRESET: '@echo_settings_layout_preset',
+  CUSTOM_LAYOUT_CONFIG: '@echo_settings_custom_layout_config',
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -62,6 +66,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [hasCompletedTutorial, setHasCompletedTutorialState] = useState(false);
   const [alwaysShowTutorial, setAlwaysShowTutorialState] = useState(false);
   const [layoutPreset, setLayoutPresetState] = useState<LayoutPreset>('default');
+  const [customLayoutConfig, setCustomLayoutConfigState] = useState<LayoutConfig>(DEFAULT_CUSTOM_LAYOUT);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -75,7 +80,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           savedFancy,
           savedHasCompletedTutorial,
           savedAlwaysShowTutorial,
-          savedLayoutPreset
+          savedLayoutPreset,
+          savedCustomLayoutConfig
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
@@ -86,6 +92,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           AsyncStorage.getItem(STORAGE_KEYS.HAS_COMPLETED_TUTORIAL),
           AsyncStorage.getItem(STORAGE_KEYS.ALWAYS_SHOW_TUTORIAL),
           AsyncStorage.getItem(STORAGE_KEYS.LAYOUT_PRESET),
+          AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_LAYOUT_CONFIG),
         ]);
 
         if (savedTheme) setThemeState(savedTheme as Theme);
@@ -96,6 +103,13 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         if (savedHasCompletedTutorial) setHasCompletedTutorialState(savedHasCompletedTutorial === 'true');
         if (savedAlwaysShowTutorial) setAlwaysShowTutorialState(savedAlwaysShowTutorial === 'true');
         if (savedLayoutPreset) setLayoutPresetState(savedLayoutPreset as LayoutPreset);
+        if (savedCustomLayoutConfig) {
+          try {
+            setCustomLayoutConfigState(JSON.parse(savedCustomLayoutConfig));
+          } catch (e) {
+            console.error('Failed to parse custom layout config:', e);
+          }
+        }
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
@@ -155,6 +169,11 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.LAYOUT_PRESET, value);
   };
 
+  const setCustomLayoutConfig = async (value: LayoutConfig) => {
+    setCustomLayoutConfigState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_LAYOUT_CONFIG, JSON.stringify(value));
+  };
+
   const colorScheme = theme === 'system' ? systemColorScheme : theme;
 
   return (
@@ -178,6 +197,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setAlwaysShowTutorial,
         layoutPreset,
         setLayoutPreset,
+        customLayoutConfig,
+        setCustomLayoutConfig,
         colorScheme,
         isInitialized
       }}
