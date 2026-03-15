@@ -48,14 +48,23 @@ const STORAGE_KEYS = {
 
 function migrateLayoutConfig(config: any): LayoutConfig {
   if (!config.slots) return DEFAULT_CUSTOM_LAYOUT;
-  if (config.slots.controls !== undefined) return config;
+  if (config.slots.controls !== undefined) {
+    return {
+      ...config,
+      slots: {
+        editor: { visible: config.slots.editor?.visible ?? true, flex: config.slots.editor?.flex ?? 50, minSize: config.slots.editor?.minSize ?? 300 },
+        player: { visible: config.slots.player?.visible ?? true, flex: config.slots.player?.flex ?? 30, minSize: config.slots.player?.minSize ?? 200 },
+        controls: { visible: config.slots.controls?.visible ?? true, flex: config.slots.controls?.flex ?? 20, minSize: config.slots.controls?.minSize ?? 150 },
+      },
+    };
+  }
   if (config.slots.syncer !== undefined) {
     return {
       ...config,
       slots: {
-        editor: config.slots.editor,
-        player: config.slots.player,
-        controls: config.slots.syncer,
+        editor: { visible: config.slots.editor?.visible ?? true, flex: config.slots.editor?.flex ?? 50, minSize: config.slots.editor?.minSize ?? 300 },
+        player: { visible: config.slots.player?.visible ?? true, flex: config.slots.player?.flex ?? 30, minSize: config.slots.player?.minSize ?? 200 },
+        controls: { visible: config.slots.syncer?.visible ?? true, flex: config.slots.syncer?.flex ?? 20, minSize: config.slots.syncer?.minSize ?? 150 },
       },
     };
   }

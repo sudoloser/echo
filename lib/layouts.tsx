@@ -1,13 +1,13 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 
 export type LayoutSlot = 'editor' | 'player' | 'controls';
 
 export interface LayoutConfig {
   slots: {
-    editor: { visible: boolean; flex: number };
-    player: { visible: boolean; flex: number };
-    controls: { visible: boolean; flex: number };
+    editor: { visible: boolean; flex: number; minSize?: number };
+    player: { visible: boolean; flex: number; minSize?: number };
+    controls: { visible: boolean; flex: number; minSize?: number };
   };
   direction: 'column' | 'row';
   rightColumn?: 'vertical' | 'horizontal';
@@ -16,7 +16,7 @@ export interface LayoutConfig {
 export const LAYOUT_PRESETS: Record<string, LayoutConfig> = {
   default: {
     slots: {
-      editor: { visible: true, flex: 1 },
+      editor: { visible: true, flex: 1, minSize: 200 },
       player: { visible: false, flex: 0 },
       controls: { visible: false, flex: 0 },
     },
@@ -24,27 +24,27 @@ export const LAYOUT_PRESETS: Record<string, LayoutConfig> = {
   },
   'side-by-side': {
     slots: {
-      editor: { visible: true, flex: 1 },
-      player: { visible: true, flex: 1 },
-      controls: { visible: true, flex: 1 },
+      editor: { visible: true, flex: 50, minSize: 300 },
+      player: { visible: true, flex: 30, minSize: 200 },
+      controls: { visible: true, flex: 20, minSize: 150 },
     },
     direction: 'row',
     rightColumn: 'vertical',
   },
   'editor-focused': {
     slots: {
-      editor: { visible: true, flex: 2 },
-      player: { visible: true, flex: 1 },
-      controls: { visible: true, flex: 1 },
+      editor: { visible: true, flex: 60, minSize: 400 },
+      player: { visible: true, flex: 25, minSize: 150 },
+      controls: { visible: true, flex: 15, minSize: 100 },
     },
     direction: 'row',
     rightColumn: 'vertical',
   },
   'player-focused': {
     slots: {
-      editor: { visible: true, flex: 1 },
-      player: { visible: true, flex: 2 },
-      controls: { visible: true, flex: 1 },
+      editor: { visible: true, flex: 30, minSize: 200 },
+      player: { visible: true, flex: 50, minSize: 300 },
+      controls: { visible: true, flex: 20, minSize: 150 },
     },
     direction: 'row',
     rightColumn: 'vertical',
@@ -53,9 +53,9 @@ export const LAYOUT_PRESETS: Record<string, LayoutConfig> = {
 
 export const DEFAULT_CUSTOM_LAYOUT: LayoutConfig = {
   slots: {
-    editor: { visible: true, flex: 1 },
-    player: { visible: true, flex: 1 },
-    controls: { visible: true, flex: 1 },
+    editor: { visible: true, flex: 50, minSize: 300 },
+    player: { visible: true, flex: 30, minSize: 200 },
+    controls: { visible: true, flex: 20, minSize: 150 },
   },
   direction: 'row',
   rightColumn: 'vertical',
@@ -81,17 +81,17 @@ export function LayoutRenderer({ preset, customConfig, slots }: LayoutRendererPr
   if (isRow && config.rightColumn === 'vertical') {
     return (
       <View style={styles.rowContainer}>
-        <View style={[styles.slot, { flex: config.slots.editor.flex }]}>
+        <View style={[styles.slot, { flex: config.slots.editor.flex, minWidth: config.slots.editor.minSize || 0 }]}>
           {slots.editor}
         </View>
         <View style={styles.columnContainer}>
           {config.slots.player.visible && (
-            <View style={[styles.slot, { flex: config.slots.player.flex }]}>
+            <View style={[styles.slot, { flex: config.slots.player.flex, minHeight: config.slots.player.minSize || 0 }]}>
               {slots.player}
             </View>
           )}
           {config.slots.controls.visible && (
-            <View style={[styles.slot, { flex: config.slots.controls.flex }]}>
+            <View style={[styles.slot, { flex: config.slots.controls.flex, minHeight: config.slots.controls.minSize || 0 }]}>
               {slots.controls}
             </View>
           )}
@@ -103,17 +103,17 @@ export function LayoutRenderer({ preset, customConfig, slots }: LayoutRendererPr
   return (
     <View style={isRow ? styles.rowContainer : styles.columnContainer}>
       {config.slots.editor.visible && (
-        <View style={[styles.slot, { flex: config.slots.editor.flex }]}>
+        <View style={[styles.slot, { flex: config.slots.editor.flex, minWidth: config.slots.editor.minSize || 0, minHeight: config.slots.editor.minSize || 0 }]}>
           {slots.editor}
         </View>
       )}
       {config.slots.player.visible && (
-        <View style={[styles.slot, { flex: config.slots.player.flex }]}>
+        <View style={[styles.slot, { flex: config.slots.player.flex, minWidth: config.slots.player.minSize || 0, minHeight: config.slots.player.minSize || 0 }]}>
           {slots.player}
         </View>
       )}
       {config.slots.controls.visible && (
-        <View style={[styles.slot, { flex: config.slots.controls.flex }]}>
+        <View style={[styles.slot, { flex: config.slots.controls.flex, minWidth: config.slots.controls.minSize || 0, minHeight: config.slots.controls.minSize || 0 }]}>
           {slots.controls}
         </View>
       )}

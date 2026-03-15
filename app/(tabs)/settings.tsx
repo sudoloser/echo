@@ -241,7 +241,7 @@ function LayoutPickerModal({
         [slot]: {
           ...prev.slots[slot],
           visible: !prev.slots[slot].visible,
-          flex: prev.slots[slot].visible ? 0 : 1,
+          flex: prev.slots[slot].visible ? 0 : 50,
         },
       },
     }));
@@ -254,7 +254,7 @@ function LayoutPickerModal({
         ...prev.slots,
         [slot]: {
           ...prev.slots[slot],
-          flex: Math.max(0, prev.slots[slot].flex + delta),
+          flex: Math.max(10, Math.min(100, (prev.slots[slot].flex || 50) + delta * 10)),
         },
       },
     }));
