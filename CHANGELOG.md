@@ -9,17 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.4] - 2026-03-20
 
-### Changed
-- Renamed `EXPO_PUBLIC_LAYOUTS_ENABLED` to `EXPO_PUBLIC_DESKTOP` in workflow files
-- Removed all layout-related code and presets (side-by-side, editor-focused, player-focused, custom layouts)
-- Simplified AppSettingsContext by removing layout configuration state
-- Updated settings screen to only show Desktop Layout toggle when `EXPO_PUBLIC_DESKTOP` is true
-
 ### Added
+- Tauri v2 initialization for desktop support (Windows & Linux)
+- New `src-tauri/` directory with standard Tauri v2 configuration
+- Automated icon generation step in `desktop.yml` workflow
 - New desktop-first layout feature that can be toggled on/off by users
 - Desktop layout provides side-by-side editor (60%) and player+controls (40%) arrangement
 - `desktopMode` state added to AppSettingsContext for user preference persistence
 - Settings toggle for Desktop Layout that only appears when build has `EXPO_PUBLIC_DESKTOP=true`
+
+### Changed
+- Refactored project structure: moved source code (`app`, `components`, `constants`, `context`, `lib`) to `src/` directory
+- Optimized GitHub Action workflows by reordering `pnpm` installation to fix "pnpm not found" errors
+- Updated `tsconfig.json` to reflect the new `src/` directory structure
+- Improved asset path consistency for better compatibility across platforms
+- Renamed `EXPO_PUBLIC_LAYOUTS_ENABLED` to `EXPO_PUBLIC_DESKTOP` in workflow files
+- Removed all layout-related code and presets (side-by-side, editor-focused, player-focused, custom layouts)
+- Simplified AppSettingsContext by removing layout configuration state
+- Updated settings screen to only show Desktop Layout toggle when `EXPO_PUBLIC_DESKTOP` is true
 
 ### Removed
 - `lib/layouts.tsx` - Complete layout system removed
