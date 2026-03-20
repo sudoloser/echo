@@ -44,7 +44,7 @@ jobs:
         run: npx expo export --platform web
         env:
           EXPO_PUBLIC_BASE_URL: /echo
-          EXPO_PUBLIC_LAYOUTS_ENABLED: "true"
+          EXPO_PUBLIC_DESKTOP: "true"
 
       - name: Build Tauri App (Linux)
         uses: tauri-apps/tauri-action@v1
@@ -101,7 +101,7 @@ jobs:
         run: npx expo export --platform web
         env:
           EXPO_PUBLIC_BASE_URL: /echo
-          EXPO_PUBLIC_LAYOUTS_ENABLED: "true"
+          EXPO_PUBLIC_DESKTOP: "true"
 
       - name: Build Tauri App (Windows)
         uses: tauri-apps/tauri-action@v1
@@ -127,6 +127,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
@@ -137,6 +140,42 @@ jobs:
         with:
           name: echo-windows
 
+      - name: Extract release notes from changelog
+        id: changelog
+        run: |
+          # Extract the version from tag (remove 'v' prefix if present)
+          VERSION=${GITHUB_REF_NAME#v}
+          
+          # Get the date for this version
+          DATE=$(date +%Y-%m-%d)
+          
+          # Find the changelog section for this version
+          # Look for the tag in the changelog and extract everything up to the next version
+          CONTENT=$(awk -v ver="[$VERSION]" '
+            BEGIN { found=0; print "# Changelog\n" }
+            $0 == ver { found=1; next }
+            found && /^\## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md)
+          
+          # If no version found, use unreleased
+          if [ -z "$CONTENT" ] || [ "$CONTENT" = "# Changelog" ]; then
+            CONTENT=$(awk '
+              BEGIN { found=0 }
+              /^\## \[Unreleased\]/ { found=1; next }
+              found && /^\## \[/ { exit }
+              found { print }
+            ' CHANGELOG.md)
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "## Unreleased" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -144,9 +183,9 @@ jobs:
             *.AppImage
             *.exe
           name: Echo ${{ github.ref_name }}
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.sha) }}
+          tag_name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.body }}
           draft: false
           prerelease: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,11 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme as useNativeColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AccentKey, CustomTheme } from '@/constants/Theme';
-import { LayoutConfig, DEFAULT_CUSTOM_LAYOUT } from '@/lib/layouts';
 
 type Theme = 'light' | 'dark' | 'system';
-
-export type LayoutPreset = 'default' | 'side-by-side' | 'editor-focused' | 'player-focused' | 'custom';
 
 interface AppSettingsContextType {
   theme: Theme;
@@ -25,10 +22,8 @@ interface AppSettingsContextType {
   setHasCompletedTutorial: (value: boolean) => void;
   alwaysShowTutorial: boolean;
   setAlwaysShowTutorial: (value: boolean) => void;
-  layoutPreset: LayoutPreset;
-  setLayoutPreset: (preset: LayoutPreset) => void;
-  customLayoutConfig: LayoutConfig;
-  setCustomLayoutConfig: (config: LayoutConfig) => void;
+  desktopMode: boolean;
+  setDesktopMode: (value: boolean) => void;
   colorScheme: 'light' | 'dark';
   isInitialized: boolean;
 }
@@ -42,34 +37,8 @@ const STORAGE_KEYS = {
   FANCY_ANIMATIONS: '@echo_settings_fancy_animations',
   HAS_COMPLETED_TUTORIAL: '@echo_settings_has_completed_tutorial',
   ALWAYS_SHOW_TUTORIAL: '@echo_settings_always_show_tutorial',
-  LAYOUT_PRESET: '@echo_settings_layout_preset',
-  CUSTOM_LAYOUT_CONFIG: '@echo_settings_custom_layout_config',
+  DESKTOP_MODE: '@echo_settings_desktop_mode',
 };
-
-function migrateLayoutConfig(config: any): LayoutConfig {
-  if (!config.slots) return DEFAULT_CUSTOM_LAYOUT;
-  if (config.slots.controls !== undefined) {
-    return {
-      ...config,
-      slots: {
-        editor: { visible: config.slots.editor?.visible ?? true, flex: config.slots.editor?.flex ?? 50, minSize: config.slots.editor?.minSize ?? 300 },
-        player: { visible: config.slots.player?.visible ?? true, flex: config.slots.player?.flex ?? 30, minSize: config.slots.player?.minSize ?? 200 },
-        controls: { visible: config.slots.controls?.visible ?? true, flex: config.slots.controls?.flex ?? 20, minSize: config.slots.controls?.minSize ?? 150 },
-      },
-    };
-  }
-  if (config.slots.syncer !== undefined) {
-    return {
-      ...config,
-      slots: {
-        editor: { visible: config.slots.editor?.visible ?? true, flex: config.slots.editor?.flex ?? 50, minSize: config.slots.editor?.minSize ?? 300 },
-        player: { visible: config.slots.player?.visible ?? true, flex: config.slots.player?.flex ?? 30, minSize: config.slots.player?.minSize ?? 200 },
-        controls: { visible: config.slots.syncer?.visible ?? true, flex: config.slots.syncer?.flex ?? 20, minSize: config.slots.syncer?.minSize ?? 150 },
-      },
-    };
-  }
-  return DEFAULT_CUSTOM_LAYOUT;
-}
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
 
@@ -90,8 +59,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
   const [enableFancyAnimations, setEnableFancyAnimationsState] = useState(false);
   const [hasCompletedTutorial, setHasCompletedTutorialState] = useState(false);
   const [alwaysShowTutorial, setAlwaysShowTutorialState] = useState(false);
-  const [layoutPreset, setLayoutPresetState] = useState<LayoutPreset>('default');
-  const [customLayoutConfig, setCustomLayoutConfigState] = useState<LayoutConfig>(DEFAULT_CUSTOM_LAYOUT);
+  const [desktopMode, setDesktopModeState] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -105,8 +73,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           savedFancy,
           savedHasCompletedTutorial,
           savedAlwaysShowTutorial,
-          savedLayoutPreset,
-          savedCustomLayoutConfig
+          savedDesktopMode
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.THEME),
           AsyncStorage.getItem(STORAGE_KEYS.ACCENT),
@@ -116,8 +83,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
           AsyncStorage.getItem(STORAGE_KEYS.FANCY_ANIMATIONS),
           AsyncStorage.getItem(STORAGE_KEYS.HAS_COMPLETED_TUTORIAL),
           AsyncStorage.getItem(STORAGE_KEYS.ALWAYS_SHOW_TUTORIAL),
-          AsyncStorage.getItem(STORAGE_KEYS.LAYOUT_PRESET),
-          AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_LAYOUT_CONFIG),
+          AsyncStorage.getItem(STORAGE_KEYS.DESKTOP_MODE),
         ]);
 
         if (savedTheme) setThemeState(savedTheme as Theme);
@@ -127,19 +93,7 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         if (savedFancy) setEnableFancyAnimationsState(savedFancy === 'true');
         if (savedHasCompletedTutorial) setHasCompletedTutorialState(savedHasCompletedTutorial === 'true');
         if (savedAlwaysShowTutorial) setAlwaysShowTutorialState(savedAlwaysShowTutorial === 'true');
-        if (savedLayoutPreset) setLayoutPresetState(savedLayoutPreset as LayoutPreset);
-        if (savedCustomLayoutConfig) {
-          try {
-            const parsed = JSON.parse(savedCustomLayoutConfig);
-            const migrated = migrateLayoutConfig(parsed);
-            setCustomLayoutConfigState(migrated);
-          } catch (e) {
-            console.error('Failed to parse custom layout config:', e);
-            setCustomLayoutConfigState(DEFAULT_CUSTOM_LAYOUT);
-          }
-        } else {
-          setCustomLayoutConfigState(DEFAULT_CUSTOM_LAYOUT);
-        }
+        if (savedDesktopMode) setDesktopModeState(savedDesktopMode === 'true');
         if (savedRewind) {
           const val = parseFloat(savedRewind);
           if (!isNaN(val)) setRewindAmountState(val);
@@ -194,14 +148,9 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     await AsyncStorage.setItem(STORAGE_KEYS.ALWAYS_SHOW_TUTORIAL, value.toString());
   };
 
-  const setLayoutPreset = async (value: LayoutPreset) => {
-    setLayoutPresetState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.LAYOUT_PRESET, value);
-  };
-
-  const setCustomLayoutConfig = async (value: LayoutConfig) => {
-    setCustomLayoutConfigState(value);
-    await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_LAYOUT_CONFIG, JSON.stringify(value));
+  const setDesktopMode = async (value: boolean) => {
+    setDesktopModeState(value);
+    await AsyncStorage.setItem(STORAGE_KEYS.DESKTOP_MODE, value.toString());
   };
 
   const colorScheme = theme === 'system' ? systemColorScheme : theme;
@@ -225,10 +174,8 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         setHasCompletedTutorial,
         alwaysShowTutorial,
         setAlwaysShowTutorial,
-        layoutPreset,
-        setLayoutPreset,
-        customLayoutConfig,
-        setCustomLayoutConfig,
+        desktopMode,
+        setDesktopMode,
         colorScheme,
         isInitialized
       }}

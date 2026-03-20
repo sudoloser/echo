@@ -64,7 +64,6 @@ import { BlurView } from 'expo-blur';
 
 import { Text, View, useTheme } from '@/components/Themed';
 import { useAppSettings } from '@/context/AppSettingsContext';
-import { LayoutRenderer } from '@/lib/layouts';
 import { EditorContent } from '@/components/EditorContent';
 import {
   LyricLine,
@@ -515,8 +514,9 @@ const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
 };
 
 export default function EditorScreen() {
-  const { colorScheme, pauseOnEnd, rewindAmount, enableFancyAnimations, layoutPreset, customLayoutConfig } = useAppSettings();
-  const layoutsEnabled = process.env.EXPO_PUBLIC_LAYOUTS_ENABLED === 'true';
+  const { colorScheme, pauseOnEnd, rewindAmount, enableFancyAnimations, desktopMode } = useAppSettings();
+  const isDesktopBuild = process.env.EXPO_PUBLIC_DESKTOP === 'true';
+  const showDesktopLayout = isDesktopBuild && desktopMode;
   const theme = useTheme();
   const { registerLayout, isVisible: isTutorialVisible, currentStep, steps } = useTutorial();
 
@@ -1468,16 +1468,67 @@ export default function EditorScreen() {
       </View>
 
       {/* Content Area */}
-      {layoutsEnabled && layoutPreset !== 'default' ? (
-        <LayoutRenderer
-          preset={layoutPreset}
-          customConfig={layoutPreset === 'custom' ? customLayoutConfig : undefined}
-          slots={{
-            editor: <View style={[styles.contentArea, { borderColor: theme.border, flex: 1 }]}><EditorContent editorMode={editorMode} lyrics={lyrics} theme={theme} expandedLines={expandedLines} rhythmMode={rhythmMode} currentLineIndex={currentLineIndex} position={position} historyIndex={historyIndex} history={history} rawLRC={rawLRC} playerScrollRef={playerScrollRef} lineHeights={lineHeights} positionSV={positionSV} TutorialView={TutorialView} handleToggleExpand={handleToggleExpand} setRhythmMode={setRhythmMode} handleEditLine={handleEditLine} deleteLyricLine={deleteLyricLine} onSliderValueChange={onSliderValueChange} handleSyllableSync={handleSyllableSync} applyOffset={applyOffset} undo={undo} redo={redo} handleRawLRCChange={handleRawLRCChange} /></View>,
-            player: <View style={[styles.contentArea, { borderColor: theme.border, flex: 1 }]}><EditorContent editorMode="play" lyrics={lyrics} theme={theme} expandedLines={expandedLines} rhythmMode={rhythmMode} currentLineIndex={currentLineIndex} position={position} historyIndex={historyIndex} history={history} rawLRC={rawLRC} playerScrollRef={playerScrollRef} lineHeights={lineHeights} positionSV={positionSV} TutorialView={TutorialView} handleToggleExpand={handleToggleExpand} setRhythmMode={setRhythmMode} handleEditLine={handleEditLine} deleteLyricLine={deleteLyricLine} onSliderValueChange={onSliderValueChange} handleSyllableSync={handleSyllableSync} applyOffset={applyOffset} undo={undo} redo={redo} handleRawLRCChange={handleRawLRCChange} /></View>,
-            controls: <View style={[styles.audioControlsContainer, { borderColor: theme.border }]}><TutorialView style={styles.audioControls} targetKey="audio_controls"><TouchableOpacity onPress={pickAudio} style={[styles.fileButton, { borderColor: theme.border }]}><FileMusic color={theme.tint} size={24} /><View style={{ flex: 1 }}><Text style={styles.fileName} numberOfLines={1}>{audioFile ? audioFile.name : 'Load MP3'}</Text>{audioFile && <Text style={[styles.metaHint, { color: theme.secondaryText }]}>{artistName ? `${artistName} - ${trackName}` : 'No metadata found'}</Text>}</View></TouchableOpacity><View style={styles.sliderRow}><Slider style={{ flex: 1, height: 40 }} minimumValue={0} maximumValue={duration || 1} value={position} onSlidingComplete={onSliderValueChange} minimumTrackTintColor={theme.tint} maximumTrackTintColor={theme.border} thumbTintColor={theme.tint} /><Text style={[styles.timeText, { color: theme.secondaryText }]}>{formatTime(position)} / {formatTime(duration)}</Text></View><View style={styles.playbackButtons}><TouchableOpacity onPress={() => setShowRateModal(true)} style={styles.controlButton}><Gauge color={theme.tint} size={24} /><Text style={[styles.controlButtonText, { color: theme.tint }]}>{playbackRate.toFixed(2)}x</Text></TouchableOpacity><TouchableOpacity onPress={togglePlayback} disabled={!sound}>{isPlaying ? <Pause color={theme.tint} size={32} /> : <Play color={theme.tint} size={32} />}</TouchableOpacity><TouchableOpacity onPress={stopPlayback} disabled={!sound}><Square color={theme.tint} size={32} /></TouchableOpacity><TouchableOpacity onPress={() => setShowSearchModal(true)} style={styles.controlButton}><Search color={theme.tint} size={24} /></TouchableOpacity></View></TutorialView></View>,
-          }}
-        />
+      {showDesktopLayout ? (
+        <View style={styles.desktopLayout}>
+          <View style={[styles.desktopEditor, { borderColor: theme.border }]}>
+            <EditorContent editorMode={editorMode} lyrics={lyrics} theme={theme} expandedLines={expandedLines} rhythmMode={rhythmMode} currentLineIndex={currentLineIndex} position={position} historyIndex={historyIndex} history={history} rawLRC={rawLRC} playerScrollRef={playerScrollRef} lineHeights={lineHeights} positionSV={positionSV} TutorialView={TutorialView} handleToggleExpand={handleToggleExpand} setRhythmMode={setRhythmMode} handleEditLine={handleEditLine} deleteLyricLine={deleteLyricLine} onSliderValueChange={onSliderValueChange} handleSyllableSync={handleSyllableSync} applyOffset={applyOffset} undo={undo} redo={redo} handleRawLRCChange={handleRawLRCChange} />
+          </View>
+          <View style={styles.desktopRightColumn}>
+            <View style={[styles.desktopPlayer, { borderColor: theme.border }]}>
+              <EditorContent editorMode="play" lyrics={lyrics} theme={theme} expandedLines={expandedLines} rhythmMode={rhythmMode} currentLineIndex={currentLineIndex} position={position} historyIndex={historyIndex} history={history} rawLRC={rawLRC} playerScrollRef={playerScrollRef} lineHeights={lineHeights} positionSV={positionSV} TutorialView={TutorialView} handleToggleExpand={handleToggleExpand} setRhythmMode={setRhythmMode} handleEditLine={handleEditLine} deleteLyricLine={deleteLyricLine} onSliderValueChange={onSliderValueChange} handleSyllableSync={handleSyllableSync} applyOffset={applyOffset} undo={undo} redo={redo} handleRawLRCChange={handleRawLRCChange} />
+            </View>
+            <View style={[styles.desktopControls, { borderColor: theme.border }]}>
+              <View style={styles.desktopAudioControls}>
+                <TouchableOpacity onPress={pickAudio} style={[styles.fileButton, { borderColor: theme.border }]}>
+                  <FileMusic color={theme.tint} size={20} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fileName} numberOfLines={1}>{audioFile ? audioFile.name : 'Load MP3'}</Text>
+                    {audioFile && <Text style={[styles.metaHint, { color: theme.secondaryText }]}>{artistName ? `${artistName} - ${trackName}` : 'No metadata found'}</Text>}
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.sliderRow}>
+                  <Slider style={{ flex: 1, height: 30 }} minimumValue={0} maximumValue={duration || 1} value={position} onSlidingComplete={onSliderValueChange} minimumTrackTintColor={theme.tint} maximumTrackTintColor={theme.border} thumbTintColor={theme.tint} />
+                  <Text style={[styles.timeText, { color: theme.secondaryText }]}>{formatTime(position)} / {formatTime(duration)}</Text>
+                </View>
+                <View style={styles.playbackButtons}>
+                  <TouchableOpacity onPress={() => setShowRateModal(true)} style={styles.controlButton}>
+                    <Gauge color={theme.tint} size={20} />
+                    <Text style={[styles.controlButtonText, { color: theme.tint }]}>{playbackRate.toFixed(2)}x</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={togglePlayback} disabled={!sound}>
+                    {isPlaying ? <Pause color={theme.tint} size={28} /> : <Play color={theme.tint} size={28} />}
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={stopPlayback} disabled={!sound}>
+                    <Square color={theme.tint} size={28} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowSearchModal(true)} style={styles.controlButton}>
+                    <Search color={theme.tint} size={20} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.nudgeRow}>
+                  <TouchableOpacity onPress={() => nudgePosition(-5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+                    <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>-5s</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => nudgePosition(-1)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+                    <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>-1s</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => nudgePosition(0.5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+                    <Text style={[styles.nudgeText, { color: theme.tint }]}>-0.5s</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => nudgePosition(0.5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+                    <Text style={[styles.nudgeText, { color: theme.tint }]}>+0.5s</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => nudgePosition(1)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+                    <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>+1s</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => nudgePosition(5)} style={[styles.nudgeButton, { borderColor: theme.border }]}>
+                    <Text style={[styles.nudgeText, { color: theme.secondaryText }]}>+5s</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
       ) : (
         <View style={[styles.contentArea, { borderColor: theme.border }]}>
           <EditorContent editorMode={editorMode} lyrics={lyrics} theme={theme} expandedLines={expandedLines} rhythmMode={rhythmMode} currentLineIndex={currentLineIndex} position={position} historyIndex={historyIndex} history={history} rawLRC={rawLRC} playerScrollRef={playerScrollRef} lineHeights={lineHeights} positionSV={positionSV} TutorialView={TutorialView} handleToggleExpand={handleToggleExpand} setRhythmMode={setRhythmMode} handleEditLine={handleEditLine} deleteLyricLine={deleteLyricLine} onSliderValueChange={onSliderValueChange} handleSyllableSync={handleSyllableSync} applyOffset={applyOffset} undo={undo} redo={redo} handleRawLRCChange={handleRawLRCChange} />
@@ -2383,5 +2434,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+  },
+  desktopLayout: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  desktopEditor: {
+    flex: 60,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    overflow: 'hidden',
+  },
+  desktopRightColumn: {
+    flex: 40,
+    gap: 12,
+  },
+  desktopPlayer: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    overflow: 'hidden',
+  },
+  desktopControls: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  desktopAudioControls: {
+    gap: 8,
   },
 });

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, TextInput, Switch, Modal, Alert, Platform, useWindowDimensions } from 'react-native';
-import { Moon, Sun, Monitor, Check, X, ChevronRight, ChevronLeft, Trash2, Sparkles, Palette, Layout, Columns, AlignStartHorizontal, AlignEndHorizontal, Sliders } from 'lucide-react-native';
+import { StyleSheet, TouchableOpacity, TextInput, Switch, Modal, Alert, Platform } from 'react-native';
+import { Moon, Sun, Monitor, Check, X, ChevronRight, ChevronLeft, Trash2, Sparkles, Palette, MonitorDot } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import ColorPicker, { HueCircular, Panel1, Preview, BrightnessSlider } from 'reanimated-color-picker';
 import { runOnJS } from 'react-native-reanimated';
@@ -13,9 +13,8 @@ const ActualColorPicker: any = (ColorPicker as any).ColorPicker || ColorPicker;
 
 
 import { Text, View, ScrollView, useTheme } from '@/components/Themed';
-import { useAppSettings, LayoutPreset } from '@/context/AppSettingsContext';
+import { useAppSettings } from '@/context/AppSettingsContext';
 import { ACCENT_COLORS, CustomTheme } from '@/constants/Theme';
-import { LayoutConfig, DEFAULT_CUSTOM_LAYOUT } from '@/lib/layouts';
 
 // --- Sub-components to isolate state and prevent re-renders during color picking ---
 
@@ -180,261 +179,6 @@ function AccentPickerModal({
   );
 }
 
-function LayoutPickerModal({
-  visible,
-  onClose,
-  currentPreset,
-  currentCustomConfig,
-  onApplyPreset,
-  onApplyCustomConfig,
-  themeColors,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  currentPreset: LayoutPreset;
-  currentCustomConfig: LayoutConfig;
-  onApplyPreset: (preset: LayoutPreset) => void;
-  onApplyCustomConfig: (config: LayoutConfig) => void;
-  themeColors: any;
-}) {
-  const [showCustomEditor, setShowCustomEditor] = useState(false);
-  const [tempConfig, setTempConfig] = useState<LayoutConfig>(currentCustomConfig);
-
-  const presets: { id: LayoutPreset; name: string; description: string; icon: React.ReactNode }[] = [
-    { 
-      id: 'default', 
-      name: 'Default', 
-      description: 'Mobile: Single column editor',
-      icon: <AlignStartHorizontal size={24} color={themeColors.tint} />
-    },
-    { 
-      id: 'side-by-side', 
-      name: 'Desktop', 
-      description: 'Editor left, Player+Controls right stacked',
-      icon: <Columns size={24} color={themeColors.tint} />
-    },
-    { 
-      id: 'editor-focused', 
-      name: 'Editor Focus', 
-      description: 'Large editor, small player+controls',
-      icon: <AlignStartHorizontal size={24} color={themeColors.tint} />
-    },
-    { 
-      id: 'player-focused', 
-      name: 'Player Focus', 
-      description: 'Large player, small editor+controls',
-      icon: <AlignEndHorizontal size={24} color={themeColors.tint} />
-    },
-    { 
-      id: 'custom', 
-      name: 'Custom', 
-      description: 'Create your own layout',
-      icon: <Sliders size={24} color={themeColors.tint} />
-    },
-  ];
-
-  const toggleSlot = (slot: 'editor' | 'player' | 'controls') => {
-    setTempConfig(prev => ({
-      ...prev,
-      slots: {
-        ...prev.slots,
-        [slot]: {
-          ...prev.slots[slot],
-          visible: !prev.slots[slot].visible,
-          flex: prev.slots[slot].visible ? 0 : 50,
-        },
-      },
-    }));
-  };
-
-  const adjustFlex = (slot: 'editor' | 'player' | 'controls', delta: number) => {
-    setTempConfig(prev => ({
-      ...prev,
-      slots: {
-        ...prev.slots,
-        [slot]: {
-          ...prev.slots[slot],
-          flex: Math.max(10, Math.min(100, (prev.slots[slot].flex || 50) + delta * 10)),
-        },
-      },
-    }));
-  };
-
-  const toggleDirection = () => {
-    setTempConfig(prev => ({
-      ...prev,
-      direction: prev.direction === 'column' ? 'row' : 'column',
-    }));
-  };
-
-  const applyCustomConfig = () => {
-    onApplyCustomConfig(tempConfig);
-    onApplyPreset('custom');
-    setShowCustomEditor(false);
-    onClose();
-  };
-
-  if (showCustomEditor) {
-    return (
-      <Modal visible={visible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={25} tint={themeColors.background === '#ffffff' ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
-          <View style={[styles.modalContent, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowCustomEditor(false)}>
-                <ChevronLeft color={themeColors.text} size={24} />
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center', marginRight: 32 }]}>Custom Layout</Text>
-              <TouchableOpacity onPress={onClose}>
-                <X color={themeColors.text} size={24} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 500 }}>
-              <Text style={[styles.layoutOptionName, { color: themeColors.text, marginTop: 16 }]}>Direction</Text>
-              <TouchableOpacity 
-                style={[styles.selectButton, { borderColor: themeColors.border, flexDirection: 'row', justifyContent: 'space-between' }]}
-                onPress={toggleDirection}
-              >
-                <Text style={{ color: themeColors.text }}>
-                  {tempConfig.direction === 'column' ? 'Vertical (Stacked)' : 'Horizontal (Side by Side)'}
-                </Text>
-                <ChevronRight color={themeColors.secondaryText} size={18} />
-              </TouchableOpacity>
-
-              <Text style={[styles.layoutOptionName, { color: themeColors.text, marginTop: 20 }]}>Panels</Text>
-              {(['editor', 'player', 'syncer'] as const).map((slot) => (
-                <View key={slot} style={[styles.settingRow, { marginTop: 12 }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <Switch
-                      value={tempConfig.slots[slot].visible}
-                      onValueChange={() => toggleSlot(slot)}
-                      trackColor={{ false: themeColors.border, true: themeColors.tint }}
-                      thumbColor="#fff"
-                    />
-                    <Text style={{ color: themeColors.text, textTransform: 'capitalize' }}>{slot}</Text>
-                  </View>
-                  {tempConfig.slots[slot].visible && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <TouchableOpacity 
-                        style={[styles.smallButton, { borderColor: themeColors.border }]}
-                        onPress={() => adjustFlex(slot, -1)}
-                      >
-                        <Text style={{ color: themeColors.text }}>-</Text>
-                      </TouchableOpacity>
-                      <Text style={{ color: themeColors.text, minWidth: 24, textAlign: 'center' }}>
-                        {tempConfig.slots[slot].flex}
-                      </Text>
-                      <TouchableOpacity 
-                        style={[styles.smallButton, { borderColor: themeColors.border }]}
-                        onPress={() => adjustFlex(slot, 1)}
-                      >
-                        <Text style={{ color: themeColors.text }}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              ))}
-
-              <View style={[styles.layoutPreview, { backgroundColor: themeColors.border + '33', marginTop: 20 }]}>
-                <Text style={{ color: themeColors.secondaryText, marginBottom: 8 }}>Preview</Text>
-                <View style={{ 
-                  flexDirection: tempConfig.direction, 
-                  height: 100, 
-                  gap: 4 
-                }}>
-                  {tempConfig.slots.editor.visible && (
-                    <View style={{ flex: tempConfig.slots.editor.flex, backgroundColor: themeColors.tint + '33', justifyContent: 'center', alignItems: 'center', borderRadius: 4 }}>
-                      <Text style={{ fontSize: 10, color: themeColors.tint }}>Editor</Text>
-                    </View>
-                  )}
-                  {tempConfig.slots.player.visible && (
-                    <View style={{ flex: tempConfig.slots.player.flex, backgroundColor: themeColors.tint + '55', justifyContent: 'center', alignItems: 'center', borderRadius: 4 }}>
-                      <Text style={{ fontSize: 10, color: themeColors.tint }}>Player</Text>
-                    </View>
-                  )}
-                  {tempConfig.slots.controls.visible && (
-                    <View style={{ flex: tempConfig.slots.controls.flex, backgroundColor: themeColors.tint + '77', justifyContent: 'center', alignItems: 'center', borderRadius: 4 }}>
-                      <Text style={{ fontSize: 10, color: themeColors.tint }}>Controls</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.applyButton, { backgroundColor: themeColors.tint, marginTop: 16 }]}
-              onPress={applyCustomConfig}
-            >
-              <Text style={[styles.applyButtonText, { color: themeColors.background }]}>Apply Custom Layout</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        {(
-          <BlurView intensity={25} tint={themeColors.background === '#ffffff' ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
-        )}
-        <View style={[
-          styles.modalContent, 
-          { backgroundColor: themeColors.background, borderColor: themeColors.border }
-        ]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Choose Layout</Text>
-            <TouchableOpacity onPress={onClose}>
-              <X color={themeColors.text} size={24} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={{ maxHeight: 400 }}>
-            {presets.map((preset) => (
-              <TouchableOpacity
-                key={preset.id}
-                style={[
-                  styles.layoutOption,
-                  { 
-                    borderColor: themeColors.border,
-                    backgroundColor: currentPreset === preset.id ? themeColors.tint + '15' : 'transparent'
-                  }
-                ]}
-                onPress={() => {
-                  if (preset.id === 'custom') {
-                    setTempConfig(currentCustomConfig);
-                    setShowCustomEditor(true);
-                  } else {
-                    onApplyPreset(preset.id);
-                    onClose();
-                  }
-                }}
-              >
-                <View style={styles.layoutOptionIcon}>
-                  {preset.icon}
-                </View>
-                <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-                  <Text style={[styles.layoutOptionName, { color: themeColors.text }]}>
-                    {preset.name}
-                  </Text>
-                  <Text style={[styles.layoutOptionDesc, { color: themeColors.secondaryText }]}>
-                    {preset.description}
-                  </Text>
-                </View>
-                {currentPreset === preset.id && (
-                  <Check size={20} color={themeColors.tint} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 export default function SettingsScreen() {
   const { 
     theme, 
@@ -451,17 +195,16 @@ export default function SettingsScreen() {
     setEnableFancyAnimations,
     alwaysShowTutorial,
     setAlwaysShowTutorial,
-    layoutPreset,
-    setLayoutPreset,
-    customLayoutConfig,
-    setCustomLayoutConfig,
+    desktopMode,
+    setDesktopMode,
     colorScheme 
   } = useAppSettings();
   const themeColors = useTheme();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
-  const [showLayoutPicker, setShowLayoutPicker] = useState(false);
+
+  const isDesktopBuild = process.env.EXPO_PUBLIC_DESKTOP === 'true';
 
   const handleApplyCustomTheme = (theme: CustomTheme) => {
     setCustomTheme(theme);
@@ -643,29 +386,25 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <View style={[styles.settingRow, { marginTop: 20 }]}>
-          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.settingLabel}>Layout</Text>
-              <Layout size={14} color={themeColors.tint} />
+        {isDesktopBuild && (
+          <View style={[styles.settingRow, { marginTop: 20 }]}>
+            <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.settingLabel}>Desktop Layout</Text>
+                <MonitorDot size={14} color={themeColors.tint} />
+              </View>
+              <Text style={[styles.hint, { color: themeColors.secondaryText, marginTop: 4 }]}>
+                Redesigned desktop-first layout with side-by-side editor and player.
+              </Text>
             </View>
-            <Text style={[styles.hint, { color: themeColors.secondaryText, marginTop: 4 }]}>
-              Choose how editor, player, and syncer panels are arranged.
-            </Text>
+            <Switch
+              value={desktopMode}
+              onValueChange={setDesktopMode}
+              trackColor={{ false: themeColors.border, true: themeColors.tint }}
+              thumbColor="#fff"
+            />
           </View>
-          <TouchableOpacity
-            style={[styles.selectButton, { borderColor: themeColors.border }]}
-            onPress={() => setShowLayoutPicker(true)}
-          >
-            <Text style={[styles.selectButtonText, { color: themeColors.text }]}>
-              {layoutPreset === 'default' ? 'Default' : 
-               layoutPreset === 'side-by-side' ? 'Side by Side' :
-               layoutPreset === 'editor-focused' ? 'Editor Focused' :
-               layoutPreset === 'player-focused' ? 'Player Focused' : layoutPreset}
-            </Text>
-            <ChevronRight size={18} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-        </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -726,16 +465,6 @@ export default function SettingsScreen() {
         themeColors={themeColors}
         colorScheme={colorScheme}
         enableFancyAnimations={enableFancyAnimations}
-      />
-
-      <LayoutPickerModal 
-        visible={showLayoutPicker}
-        onClose={() => setShowLayoutPicker(false)}
-        currentPreset={layoutPreset}
-        currentCustomConfig={customLayoutConfig}
-        onApplyPreset={setLayoutPreset}
-        onApplyCustomConfig={setCustomLayoutConfig}
-        themeColors={themeColors}
       />
     </ScrollView>
   );
