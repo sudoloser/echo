@@ -46,9 +46,20 @@ jobs:
           echo "EXPO_PUBLIC_BUILD_TIME=$(date +%s)" >> .env
 
       - name: Expo Export (Web)
-        run: npx expo export --platform web
+        run: |
+          # Remove baseUrl for desktop builds (Tauri serves from root)
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            delete app.experiments?.baseUrl;
+            app.web = app.web || {};
+            app.web.baseUrl = '';
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+          "
+          npx expo export --platform web
         env:
           EXPO_PUBLIC_DESKTOP: "true"
+          EXPO_PUBLIC_BASE_URL: ""
 
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@^2
@@ -57,7 +68,7 @@ jobs:
         run: npx tauri icon assets/images/echo.png
 
       - name: Build Tauri App (Linux)
-        run: npx tauri build --target x86_64-unknown-linux-gnu --all-features
+        run: npx tauri build --target x86_64-unknown-linux-gnu --features custom-protocol
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -101,9 +112,20 @@ jobs:
           echo EXPO_PUBLIC_BUILD_TIME=%date:~10,4%%date:~4,2%%date:~7,2% >> .env
 
       - name: Expo Export (Web)
-        run: npx expo export --platform web
+        run: |
+          # Remove baseUrl for desktop builds (Tauri serves from root)
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            delete app.experiments?.baseUrl;
+            app.web = app.web || {};
+            app.web.baseUrl = '';
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+          "
+          npx expo export --platform web
         env:
           EXPO_PUBLIC_DESKTOP: "true"
+          EXPO_PUBLIC_BASE_URL: ""
 
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@^2
@@ -112,7 +134,7 @@ jobs:
         run: npx tauri icon assets/images/echo.png
 
       - name: Build Tauri App (Windows)
-        run: npx tauri build --target x86_64-pc-windows-msvc --all-features
+        run: npx tauri build --target x86_64-pc-windows-msvc --features custom-protocol
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
