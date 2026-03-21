@@ -47,19 +47,9 @@ jobs:
 
       - name: Expo Export (Web)
         run: |
-          # Remove baseUrl for desktop builds (Tauri serves from root)
-          node -e "
-            const fs = require('fs');
-            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-            delete app.experiments?.baseUrl;
-            app.web = app.web || {};
-            app.web.baseUrl = '';
-            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
-          "
           npx expo export --platform web
         env:
           EXPO_PUBLIC_DESKTOP: "true"
-          EXPO_PUBLIC_BASE_URL: ""
 
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@^2
@@ -111,18 +101,9 @@ jobs:
           type .public-env > .env
           echo EXPO_PUBLIC_BUILD_TIME=%date:~10,4%%date:~4,2%%date:~7,2% >> .env
 
-      - name: Expo Export (Web)
+      - name: Expo Export (Desktop)
         run: |
-          # Remove baseUrl for desktop builds (Tauri serves from root)
-          node -e "
-            const fs = require('fs');
-            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-            delete app.experiments?.baseUrl;
-            app.web = app.web || {};
-            app.web.baseUrl = '';
-            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
-          "
-          npx expo export --platform web
+          npx expo export --platform desktop
         env:
           EXPO_PUBLIC_DESKTOP: "true"
           EXPO_PUBLIC_BASE_URL: ""
