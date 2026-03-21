@@ -43,3 +43,5 @@ yarn-error.*
 GEMINI.md
 AGENTS.md
 release.keystore
+
+.env
