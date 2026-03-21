@@ -63,6 +63,9 @@ Access the web version at: https://explysm.github.io/echo
 
 ## Building & Releasing
 
+> [!NOTE]
+> **Versioning**: Bug fix releases (e.g. `v1.0.0` → `v1.0.0.1`) do not bump the app version in `app.json`, `.public-env`, or `package.json`. Only feature releases that introduce new functionality bump the app version.
+
 ### Android APK
 The project includes a GitHub Workflow for building the release APK. To use it:
 1. Set up the following secrets in your GitHub repository:

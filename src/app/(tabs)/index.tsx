@@ -400,14 +400,16 @@ const getContrastColor = (hex: string) => {
 const ModeTogglePill = memo(({ 
   currentMode, 
   onModeChange, 
-  theme 
+  theme,
+  availableModes = ['raw', 'sync', 'play']
 }: { 
   currentMode: 'raw' | 'sync' | 'play', 
   onModeChange: (mode: 'raw' | 'sync' | 'play') => void, 
-  theme: any 
+  theme: any,
+  availableModes?: ('raw' | 'sync' | 'play')[]
 }) => {
   const { enableFancyAnimations, colorScheme } = useAppSettings();
-  const modes: ('raw' | 'sync' | 'play')[] = ['raw', 'sync', 'play'];
+  const modes: ('raw' | 'sync' | 'play')[] = availableModes;
   const activeIndex = modes.indexOf(currentMode);
   
   const indicatorPosition = useSharedValue(activeIndex);
@@ -1483,7 +1485,8 @@ export default function EditorScreen() {
                 <ModeTogglePill 
                   currentMode={editorMode} 
                   onModeChange={setEditorMode} 
-                  theme={theme} 
+                  theme={theme}
+                  availableModes={['raw', 'sync']}
                 />
               </View>
               <TouchableOpacity 
