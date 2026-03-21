@@ -101,9 +101,9 @@ jobs:
           type .public-env > .env
           echo EXPO_PUBLIC_BUILD_TIME=%date:~10,4%%date:~4,2%%date:~7,2% >> .env
 
-      - name: Expo Export (Desktop)
+      - name: Expo Export (Web)
         run: |
-	  sed -i 's|"baseUrl": "/echo"|"baseUrl": ""|g'
+          sed -i 's|"baseUrl": "/echo"|"baseUrl": ""|g'
           npx expo export --platform web
         env:
           EXPO_PUBLIC_DESKTOP: "true"
