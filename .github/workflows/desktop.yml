@@ -103,7 +103,8 @@ jobs:
 
       - name: Expo Export (Desktop)
         run: |
-          npx expo export --platform desktop
+	  sed -i 's|"baseUrl": "/echo"|"baseUrl": ""|g'
+          npx expo export --platform web
         env:
           EXPO_PUBLIC_DESKTOP: "true"
           EXPO_PUBLIC_BASE_URL: ""
